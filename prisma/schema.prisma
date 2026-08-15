@@ -69,6 +69,8 @@ model User {
   sessions        Session[]
   questions       PropertyQuestion[]
   answers         PropertyAnswer[]
+  uploadedDocuments Document[] @relation("DocumentUploader")
+  receivedDocuments Document[] @relation("DocumentReceiver")
 }
 
 // NextAuth tables
@@ -252,4 +254,27 @@ model PropertyAnswer {
   agent    User             @relation(fields: [agentId], references: [id], onDelete: Cascade)
 
   @@index([questionId])
+}
+
+// side: 'buyer' = uploaded by buyer about themselves
+//       'agent' = uploaded by agent for/about the buyer
+model Document {
+  id           String   @id @default(uuid())
+  uploaderId   String
+  receiverId   String?
+  side         String
+  category     String
+  label        String
+  filename     String
+  fileUrl      String
+  fileSize     Int
+  mimeType     String
+  uploadedAt   DateTime @default(now())
+
+  uploader  User  @relation("DocumentUploader", fields: [uploaderId], references: [id], onDelete: Cascade)
+  receiver  User? @relation("DocumentReceiver", fields: [receiverId], references: [id])
+
+  @@index([uploaderId])
+  @@index([receiverId])
+  @@index([side])
 }
