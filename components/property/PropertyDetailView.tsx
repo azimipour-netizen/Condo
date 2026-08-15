@@ -7,6 +7,7 @@ import type { Property } from '@/types/property'
 import ShowingRequestModal from './ShowingRequestModal'
 import SaveButton from './SaveButton'
 import PropertyQA from './PropertyQA'
+import MortgageCalculator from './MortgageCalculator'
 
 const SinglePropertyMap = dynamic(() => import('@/components/map/SinglePropertyMap'), { ssr: false })
 
@@ -139,7 +140,7 @@ export default function PropertyDetailView({ property: p, initialSaved }: Props)
           </div>
 
           {/* Right sidebar */}
-          <div className="lg:sticky lg:top-6 space-y-4 self-start">
+          <div className="lg:sticky lg:top-6 space-y-4 self-start lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto lg:pr-1">
             <div className="bg-[color:var(--bg-surface)] border border-[color:var(--border)] rounded-2xl p-6">
               <p className="text-3xl font-bold tabular text-[color:var(--foreground)] mb-1">
                 ${p.price.toLocaleString()}
@@ -167,6 +168,15 @@ export default function PropertyDetailView({ property: p, initialSaved }: Props)
                 Add to Comparison
               </Link>
             </div>
+
+            {/* Mortgage Calculator — sale listings only */}
+            {p.transactionType === 'sale' && (
+              <MortgageCalculator
+                price={p.price}
+                maintenanceFee={p.maintenanceFee}
+                propertyTaxes={p.taxes}
+              />
+            )}
 
             {/* Location */}
             <div className="bg-[color:var(--bg-surface)] border border-[color:var(--border)] rounded-2xl p-5">

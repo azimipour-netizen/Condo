@@ -123,6 +123,7 @@ model Property {
   yearBuilt       Int?
   maintenanceFee  Decimal?            @db.Decimal(10, 2)
   taxes           Decimal?            @db.Decimal(10, 2)
+  transactionType String              @default("sale") // "sale" | "lease"
   title           String
   description     String              @db.Text
   features        String[]

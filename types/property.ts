@@ -17,6 +17,7 @@ export interface Property {
   id: string
   listingId: string
   status: PropertyStatus
+  transactionType: 'sale' | 'lease'
   price: number
   propertyType: PropertyType
   bedrooms: number
