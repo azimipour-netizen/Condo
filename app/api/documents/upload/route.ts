@@ -40,23 +40,43 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const blob = await put(`documents/${session.user.id}/${Date.now()}-${file.name}`, file, {
-    access: 'private',
-  })
+  // Buyers must be unlocked by an agent before they can upload
+  if (side === 'buyer') {
+    const dbUser = await (db as any).user.findUnique({
+      where: { id: session.user.id },
+      select: { documentsUnlocked: true },
+    })
+    if (!dbUser?.documentsUnlocked) {
+      return NextResponse.json(
+        { error: 'Document upload not enabled for your account. Contact your agent to enable it.' },
+        { status: 403 }
+      )
+    }
+  }
 
-  const doc = await (db as any).document.create({
-    data: {
-      uploaderId: session.user.id,
-      receiverId: receiverId || null,
-      side,
-      category,
-      label,
-      filename: file.name,
-      fileUrl: blob.url,
-      fileSize: file.size,
-      mimeType: file.type,
-    },
-  })
+  try {
+    const blob = await put(`documents/${session.user.id}/${Date.now()}-${file.name}`, file, {
+      access: 'private',
+    })
 
-  return NextResponse.json({ document: doc })
+    const doc = await (db as any).document.create({
+      data: {
+        uploaderId: session.user.id,
+        receiverId: receiverId || null,
+        side,
+        category,
+        label,
+        filename: file.name,
+        fileUrl: blob.url,
+        fileSize: file.size,
+        mimeType: file.type,
+      },
+    })
+
+    return NextResponse.json({ document: doc })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('[upload] error:', msg)
+    return NextResponse.json({ error: msg }, { status: 500 })
+  }
 }

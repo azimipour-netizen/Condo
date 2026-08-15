@@ -83,16 +83,38 @@ export default function BuyerDocumentsPage() {
       </div>
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-6">
-        <DocumentVault
-          side="buyer"
-          categories={BUYER_CATEGORIES}
-          title="Your Documents"
-          description="Identity, financial, and pre-qualification documents you share with your agent"
-          documents={buyerDocs}
-          canUpload
-          onUploaded={doc => setBuyerDocs(prev => [doc, ...prev])}
-          onDeleted={id => setBuyerDocs(prev => prev.filter(d => d.id !== id))}
-        />
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+        {!(session as any)?.user?.documentsUnlocked && (
+          <div className="bg-[color:var(--bg-surface)] border border-[color:var(--border)] rounded-2xl px-6 py-8 flex flex-col items-center text-center gap-3">
+            <div className="w-12 h-12 rounded-full bg-[color:var(--bg-surface-2)] flex items-center justify-center">
+              <svg width="22" height="22" viewBox="0 0 22 22" fill="none" className="text-[color:var(--text-muted)]">
+                <rect x="3" y="10" width="16" height="11" rx="2" stroke="currentColor" strokeWidth="1.5"/>
+                <path d="M7 10V7a4 4 0 0 1 8 0v3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                <circle cx="11" cy="15.5" r="1.5" fill="currentColor"/>
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-[color:var(--foreground)]">Document upload is locked</p>
+              <p className="text-xs text-[color:var(--text-muted)] mt-1 max-w-xs">
+                Your agent needs to enable document upload for your account. Contact your assigned realtor to get access.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+        {(session as any)?.user?.documentsUnlocked && (
+          <DocumentVault
+            side="buyer"
+            categories={BUYER_CATEGORIES}
+            title="Your Documents"
+            description="Identity, financial, and pre-qualification documents you share with your agent"
+            documents={buyerDocs}
+            canUpload
+            onUploaded={doc => setBuyerDocs(prev => [doc, ...prev])}
+            onDeleted={id => setBuyerDocs(prev => prev.filter(d => d.id !== id))}
+          />
+        )}
 
         <DocumentVault
           side="agent"

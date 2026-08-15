@@ -53,9 +53,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const dbUser = await (db as any).user.findUnique({
             where: { id: token.id as string },
-            select: { role: true },
+            select: { role: true, documentsUnlocked: true },
           })
-          if (dbUser) token.role = dbUser.role
+          if (dbUser) {
+            token.role = dbUser.role
+            token.documentsUnlocked = dbUser.documentsUnlocked
+          }
         } catch {}
       }
       return token
@@ -65,6 +68,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.id = token.id as string
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ;(session.user as any).role = token.role
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ;(session.user as any).documentsUnlocked = token.documentsUnlocked ?? false
       }
       return session
     },

@@ -84,14 +84,15 @@ export default function DocumentVault({ side, categories, title, description, do
       fd.append('label', customLabel || categories.find(c => c.value === category)?.label || category)
       fd.append('side', side)
       const res = await fetch('/api/documents/upload', { method: 'POST', body: fd })
-      const json = await res.json()
-      if (!res.ok) { setError(json.error ?? 'Upload failed'); return }
+      let json: any = {}
+      try { json = await res.json() } catch {}
+      if (!res.ok) { setError(json.error ?? `Upload failed (${res.status})`); return }
       onUploaded(json.document)
       setFile(null)
       setShowUpload(false)
       if (fileRef.current) fileRef.current.value = ''
-    } catch {
-      setError('Upload failed. Check your connection.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Upload failed. Check your connection.')
     } finally {
       setUploading(false)
     }
@@ -115,10 +116,11 @@ export default function DocumentVault({ side, categories, title, description, do
 
   return (
     <div className="bg-[color:var(--bg-surface)] border border-[color:var(--border)] rounded-2xl overflow-hidden">
+      {title && (
       <div className="px-5 py-4 border-b border-[color:var(--border)] flex items-center justify-between">
         <div>
           <h3 className="text-sm font-semibold text-[color:var(--foreground)]">{title}</h3>
-          <p className="text-xs text-[color:var(--text-muted)] mt-0.5">{description}</p>
+          {description && <p className="text-xs text-[color:var(--text-muted)] mt-0.5">{description}</p>}
         </div>
         {canUpload && (
           <button
@@ -130,6 +132,7 @@ export default function DocumentVault({ side, categories, title, description, do
           </button>
         )}
       </div>
+      )}
 
       {/* Upload form */}
       {showUpload && (
