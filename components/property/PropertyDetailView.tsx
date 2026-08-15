@@ -8,6 +8,7 @@ import ShowingRequestModal from './ShowingRequestModal'
 import SaveButton from './SaveButton'
 import PropertyQA from './PropertyQA'
 import MortgageCalculator from './MortgageCalculator'
+import CompareButton from './CompareButton'
 
 const SinglePropertyMap = dynamic(() => import('@/components/map/SinglePropertyMap'), { ssr: false })
 
@@ -158,15 +159,7 @@ export default function PropertyDetailView({ property: p, initialSaved }: Props)
                 <SaveButton propertyId={p.id} initialSaved={initialSaved} size="md" />
               </div>
 
-              <Link
-                href={`/compare?ids=${p.id}`}
-                className="w-full flex items-center justify-center gap-2 border border-[color:var(--border)] hover:border-[color:var(--accent)] text-[color:var(--foreground)] text-sm font-medium py-3 rounded-xl transition-colors"
-              >
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                  <path d="M1 3H13M1 7H8M1 11H5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                </svg>
-                Add to Comparison
-              </Link>
+              <CompareButton propertyId={p.id} />
             </div>
 
             {/* Mortgage Calculator — sale listings only */}
