@@ -21,12 +21,17 @@ export async function POST(req: Request) {
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { propertyId } = await req.json()
   if (!propertyId) return NextResponse.json({ error: 'propertyId required' }, { status: 400 })
-  await (db as any).savedProperty.upsert({
-    where: { userId_propertyId: { userId: session.user.id, propertyId } },
-    create: { userId: session.user.id, propertyId },
-    update: {},
-  })
-  return NextResponse.json({ ok: true })
+  try {
+    await (db as any).savedProperty.upsert({
+      where: { userId_propertyId: { userId: session.user.id, propertyId } },
+      create: { userId: session.user.id, propertyId },
+      update: {},
+    })
+    return NextResponse.json({ ok: true })
+  } catch (err) {
+    console.error('[POST /api/properties/saved] DB error:', err)
+    return NextResponse.json({ error: 'DB error' }, { status: 500 })
+  }
 }
 
 export async function DELETE(req: Request) {

@@ -220,7 +220,7 @@ export default function ChatInterface({ initialMessage }: Props) {
                     <p className="text-xs font-medium text-[color:var(--foreground)] truncate">{session.user?.name}</p>
                     <p className="text-xs text-[color:var(--text-muted)] truncate">{session.user?.email}</p>
                   </div>
-                  <Link href="/saved" onClick={() => setMenuOpen(false)}
+                  <Link href="/account/favorites" onClick={() => setMenuOpen(false)}
                     className="flex items-center gap-2.5 px-3 py-2 text-sm text-[color:var(--foreground)] hover:bg-[color:var(--bg-surface-2)] transition-colors">
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 12.5C7 12.5 1 8.5 1 4.5C1 2.567 2.567 1 4.5 1C5.553 1 6.5 1.5 7 2.3C7.5 1.5 8.447 1 9.5 1C11.433 1 13 2.567 13 4.5C13 8.5 7 12.5 7 12.5Z" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
                     Saved Properties

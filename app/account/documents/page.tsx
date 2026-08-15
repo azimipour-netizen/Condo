@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import DocumentVault, { type VaultDoc } from '@/components/documents/DocumentVault'
 
 const BUYER_CATEGORIES = [
@@ -56,7 +55,7 @@ export default function BuyerDocumentsPage() {
 
   if (status === 'loading' || loading) {
     return (
-      <div className="min-h-screen bg-[color:var(--background)] flex items-center justify-center">
+      <div className="flex items-center justify-center h-64">
         <div className="w-6 h-6 border-2 border-[color:var(--accent)]/30 border-t-[color:var(--accent)] rounded-full animate-spin" />
       </div>
     )
@@ -65,24 +64,13 @@ export default function BuyerDocumentsPage() {
   if (status === 'unauthenticated') return null
 
   return (
-    <div className="min-h-screen bg-[color:var(--background)]">
-      <div className="border-b border-[color:var(--border)] bg-[color:var(--bg-surface)]">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 flex items-center gap-4">
-          <Link href="/" className="flex items-center gap-2 text-sm text-[color:var(--text-muted)] hover:text-[color:var(--foreground)] transition-colors">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M10 3L5 8L10 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            Back
-          </Link>
-          <span className="text-[color:var(--border)]">|</span>
-          <div>
-            <h1 className="text-sm font-semibold text-[color:var(--foreground)]">My Documents</h1>
-            <p className="text-xs text-[color:var(--text-muted)]">Secure document vault — shared with your assigned realtor</p>
-          </div>
-        </div>
+    <div className="px-6 py-8">
+      <div className="mb-6">
+        <h1 className="text-lg font-semibold text-[color:var(--foreground)]">My Documents</h1>
+        <p className="text-sm text-[color:var(--text-muted)] mt-0.5">Secure document vault — shared with your assigned realtor</p>
       </div>
 
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+      <div className="max-w-4xl space-y-6">
         {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
         {!(session as any)?.user?.documentsUnlocked && (
           <div className="bg-[color:var(--bg-surface)] border border-[color:var(--border)] rounded-2xl px-6 py-8 flex flex-col items-center text-center gap-3">
@@ -130,3 +118,4 @@ export default function BuyerDocumentsPage() {
     </div>
   )
 }
+
