@@ -23,6 +23,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <nav className="flex-1 px-3 py-4 flex flex-col gap-1">
           <NavLink href="/dashboard" label="Overview" icon="⊞" />
           <NavLink href="/dashboard/showings" label="Showings" icon="◷" />
+          <NavLink href="/dashboard/questions" label="Questions" icon="?" />
         </nav>
 
         <div className="px-3 py-4 border-t border-[color:var(--border)]">

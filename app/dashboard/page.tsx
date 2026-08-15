@@ -7,14 +7,16 @@ async function getStats() {
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const d = db as any
-    const [totalShowings, pendingShowings, confirmedShowings] = await Promise.all([
+    const [totalShowings, pendingShowings, confirmedShowings, totalQuestions, unansweredQuestions] = await Promise.all([
       d.showingRequest.count(),
       d.showingRequest.count({ where: { status: 'requested' } }),
       d.showingRequest.count({ where: { status: { in: ['confirmed', 'scheduled'] } } }),
+      d.propertyQuestion.count(),
+      d.propertyQuestion.count({ where: { answers: { none: {} } } }),
     ])
-    return { totalShowings, pendingShowings, confirmedShowings }
+    return { totalShowings, pendingShowings, confirmedShowings, totalQuestions, unansweredQuestions }
   } catch {
-    return { totalShowings: 0, pendingShowings: 0, confirmedShowings: 0 }
+    return { totalShowings: 0, pendingShowings: 0, confirmedShowings: 0, totalQuestions: 0, unansweredQuestions: 0 }
   }
 }
 
@@ -25,10 +27,15 @@ export default async function DashboardPage() {
     <div className="p-8">
       <h1 className="text-2xl font-bold text-[color:var(--foreground)] mb-8">Overview</h1>
 
-      <div className="grid grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-3 gap-4 mb-4">
         <StatCard label="Showing requests" value={stats.totalShowings} />
         <StatCard label="Pending review" value={stats.pendingShowings} accent />
         <StatCard label="Confirmed" value={stats.confirmedShowings} />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 mb-8">
+        <StatCard label="Buyer questions" value={stats.totalQuestions} />
+        <StatCard label="Awaiting answer" value={stats.unansweredQuestions} accent={stats.unansweredQuestions > 0} />
       </div>
 
       <div className="flex gap-3">
@@ -37,6 +44,12 @@ export default async function DashboardPage() {
           className="px-4 py-2 bg-[color:var(--accent)] text-white text-sm font-medium rounded-lg hover:opacity-90 transition-opacity"
         >
           Manage showings
+        </Link>
+        <Link
+          href="/dashboard/questions"
+          className="px-4 py-2 border border-[color:var(--border)] text-[color:var(--foreground)] text-sm font-medium rounded-lg hover:bg-[color:var(--bg-surface-2)] transition-colors"
+        >
+          Answer questions
         </Link>
         <Link
           href="/"

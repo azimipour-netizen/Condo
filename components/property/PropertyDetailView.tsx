@@ -6,6 +6,7 @@ import Link from 'next/link'
 import type { Property } from '@/types/property'
 import ShowingRequestModal from './ShowingRequestModal'
 import SaveButton from './SaveButton'
+import PropertyQA from './PropertyQA'
 
 const SinglePropertyMap = dynamic(() => import('@/components/map/SinglePropertyMap'), { ssr: false })
 
@@ -194,6 +195,11 @@ export default function PropertyDetailView({ property: p, initialSaved }: Props)
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Q&A section — full-width below main content */}
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 pb-16">
+        <PropertyQA propertyId={p.id} />
       </div>
 
       {showModal && (
