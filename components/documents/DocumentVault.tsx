@@ -219,7 +219,7 @@ export default function DocumentVault({ side, categories, title, description, do
                 </p>
               </div>
               <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer"
+                <a href={`/api/documents/${doc.id}/download`} target="_blank" rel="noopener noreferrer"
                   className="w-7 h-7 rounded-lg flex items-center justify-center text-[color:var(--text-muted)] hover:text-[color:var(--foreground)] hover:bg-[color:var(--bg-surface)] transition-colors">
                   <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M7 1H12V6M12 1L6 7M2 4H1V12H9V11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
                 </a>

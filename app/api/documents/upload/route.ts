@@ -41,7 +41,7 @@ export async function POST(req: Request) {
   }
 
   const blob = await put(`documents/${session.user.id}/${Date.now()}-${file.name}`, file, {
-    access: 'public',
+    access: 'private',
   })
 
   const doc = await (db as any).document.create({
