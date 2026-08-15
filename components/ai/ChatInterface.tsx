@@ -1,8 +1,6 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import Link from 'next/link'
-import { useSession, signOut } from 'next-auth/react'
 import type { AIMessage } from '@/types/ai'
 import type { SearchResult, SearchFilters } from '@/types/search'
 import MessageBubble from './MessageBubble'
@@ -29,22 +27,16 @@ function saveSession(messages: AIMessage[], searchResult: SearchResult | null, c
 }
 
 export default function ChatInterface({ initialMessage }: Props) {
-  const saved = typeof window !== 'undefined' ? loadSession() : null
-  const [messages, setMessages] = useState<AIMessage[]>(saved?.messages ?? [])
+  const [messages, setMessages] = useState<AIMessage[]>([])
   const [input, setInput] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
-  const [searchResult, setSearchResult] = useState<SearchResult | null>(saved?.searchResult ?? null)
-  const [currentFilters, setCurrentFilters] = useState<SearchFilters>(saved?.currentFilters ?? {})
-  const [menuOpen, setMenuOpen] = useState(false)
+  const [searchResult, setSearchResult] = useState<SearchResult | null>(null)
+  const [currentFilters, setCurrentFilters] = useState<SearchFilters>({})
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
   const hasSentInitial = useRef(false)
-  const { data: session, status } = useSession()
-  const role = (session?.user as any)?.role
-  const initials = session?.user?.name
-    ? session.user.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
-    : session?.user?.email?.[0]?.toUpperCase() ?? '?'
+  // Skip the very first save effect run (fires before restore is applied)
+  const firstSaveRef = useRef(true)
 
   const scrollToBottom = useCallback(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -54,6 +46,16 @@ export default function ChatInterface({ initialMessage }: Props) {
     scrollToBottom()
   }, [messages, scrollToBottom])
 
+  // Restore previous chat session when navigating back (only if no fresh initialMessage)
+  useEffect(() => {
+    if (!initialMessage) {
+      const saved = loadSession()
+      if (saved?.messages?.length) setMessages(saved.messages)
+      if (saved?.searchResult) setSearchResult(saved.searchResult)
+      if (saved?.currentFilters) setCurrentFilters(saved.currentFilters)
+    }
+  }, []) // eslint-disable-line
+
   useEffect(() => {
     if (initialMessage && !hasSentInitial.current) {
       hasSentInitial.current = true
@@ -61,7 +63,9 @@ export default function ChatInterface({ initialMessage }: Props) {
     }
   }, [initialMessage]) // eslint-disable-line
 
+  // Save session on every change, but skip the very first run (before restore is applied)
   useEffect(() => {
+    if (firstSaveRef.current) { firstSaveRef.current = false; return }
     saveSession(messages, searchResult, currentFilters)
   }, [messages, searchResult, currentFilters])
 
@@ -169,16 +173,6 @@ export default function ChatInterface({ initialMessage }: Props) {
   }
 
   useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [])
-
-  useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
       textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`
@@ -188,73 +182,9 @@ export default function ChatInterface({ initialMessage }: Props) {
   const hasResults = searchResult && searchResult.properties.length > 0
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex flex-1 min-h-0 overflow-hidden">
       {/* Left: conversation */}
       <div className="flex flex-col w-full lg:w-[420px] xl:w-[480px] border-r border-[color:var(--border)] bg-[color:var(--bg-surface)] shrink-0">
-        {/* Header */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-[color:var(--border)]">
-          <div className="w-7 h-7 rounded-lg bg-[color:var(--accent)] flex items-center justify-center shrink-0">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <path d="M7 1L9 5H13L10 8L11 12L7 10L3 12L4 8L1 5H5L7 1Z" fill="white" />
-            </svg>
-          </div>
-          <p className="text-sm font-semibold text-[color:var(--foreground)] flex-1">Toronto Realty AI</p>
-
-          {status === 'authenticated' ? (
-            <div className="relative" ref={menuRef}>
-              <button
-                onClick={() => setMenuOpen(o => !o)}
-                className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg hover:bg-[color:var(--bg-surface-2)] transition-colors"
-              >
-                <span className="w-6 h-6 rounded-full bg-[color:var(--accent)] text-white text-[10px] font-bold flex items-center justify-center">
-                  {initials}
-                </span>
-                <svg width="10" height="10" viewBox="0 0 12 12" fill="none" className={`text-[color:var(--text-muted)] transition-transform ${menuOpen ? 'rotate-180' : ''}`}>
-                  <path d="M2 4L6 8L10 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </button>
-
-              {menuOpen && (
-                <div className="absolute right-0 top-full mt-1.5 w-56 bg-[color:var(--bg-surface)] border border-[color:var(--border)] rounded-xl shadow-lg py-1 z-50">
-                  <div className="px-3 py-2 border-b border-[color:var(--border)]">
-                    <p className="text-xs font-medium text-[color:var(--foreground)] truncate">{session.user?.name}</p>
-                    <p className="text-xs text-[color:var(--text-muted)] truncate">{session.user?.email}</p>
-                  </div>
-                  <Link href="/account/favorites" onClick={() => setMenuOpen(false)}
-                    className="flex items-center gap-2.5 px-3 py-2 text-sm text-[color:var(--foreground)] hover:bg-[color:var(--bg-surface-2)] transition-colors">
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 12.5C7 12.5 1 8.5 1 4.5C1 2.567 2.567 1 4.5 1C5.553 1 6.5 1.5 7 2.3C7.5 1.5 8.447 1 9.5 1C11.433 1 13 2.567 13 4.5C13 8.5 7 12.5 7 12.5Z" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                    Saved Properties
-                  </Link>
-                  <Link href="/account/documents" onClick={() => setMenuOpen(false)}
-                    className="flex items-center gap-2.5 px-3 py-2 text-sm text-[color:var(--foreground)] hover:bg-[color:var(--bg-surface-2)] transition-colors">
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 1H9L12 4V13H3V1Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/><path d="M9 1V4H12" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/><path d="M5 7H9M5 9.5H7.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>
-                    My Documents
-                  </Link>
-                  {(role === 'agent' || role === 'admin') && (
-                    <Link href="/dashboard" onClick={() => setMenuOpen(false)}
-                      className="flex items-center gap-2.5 px-3 py-2 text-sm text-[color:var(--foreground)] hover:bg-[color:var(--bg-surface-2)] transition-colors">
-                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.4"/><rect x="8" y="1" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.4"/><rect x="1" y="8" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.4"/><rect x="8" y="8" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.4"/></svg>
-                      My Real Estate Dashboard
-                    </Link>
-                  )}
-                  <div className="border-t border-[color:var(--border)] mt-1 pt-1">
-                    <button onClick={() => signOut({ callbackUrl: '/' })}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-[color:var(--text-muted)] hover:text-[color:var(--foreground)] hover:bg-[color:var(--bg-surface-2)] transition-colors">
-                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M5 2H2C1.45 2 1 2.45 1 3V11C1 11.55 1.45 12 2 12H5M9 10L13 7L9 4M13 7H5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                      Sign out
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
-            <Link href="/login"
-              className="px-3 py-1.5 text-xs font-medium bg-[color:var(--accent)] text-white rounded-lg hover:bg-[color:var(--accent-hover)] transition-colors">
-              Sign in
-            </Link>
-          )}
-        </div>
-
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
           {messages.length === 0 && (
