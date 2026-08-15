@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import type { Property } from '@/types/property'
 import ShowingRequestModal from './ShowingRequestModal'
 import SaveButton from './SaveButton'
@@ -25,6 +26,7 @@ const TYPE_LABELS: Record<string, string> = {
 export default function PropertyDetailView({ property: p, initialSaved }: Props) {
   const [activeImg, setActiveImg] = useState(0)
   const [showModal, setShowModal] = useState(false)
+  const router = useRouter()
 
   const displayLocation = [p.location.address, p.location.neighbourhood, p.location.city]
     .filter(Boolean).join(', ')
@@ -34,12 +36,15 @@ export default function PropertyDetailView({ property: p, initialSaved }: Props)
       {/* Nav */}
       <div className="border-b border-[color:var(--border)] bg-[color:var(--bg-surface)]">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-3">
-          <Link href="/" className="flex items-center gap-2 text-sm text-[color:var(--text-muted)] hover:text-[color:var(--foreground)] transition-colors">
+          <button
+            onClick={() => router.back()}
+            className="flex items-center gap-2 text-sm text-[color:var(--text-muted)] hover:text-[color:var(--foreground)] transition-colors"
+          >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M10 3L5 8L10 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             Back
-          </Link>
+          </button>
           <span className="text-[color:var(--border)]">|</span>
           <span className="text-xs text-[color:var(--text-muted)]">MLS® {p.listingId}</span>
         </div>
