@@ -2,12 +2,15 @@
 
 import { SessionProvider } from 'next-auth/react'
 import CompareBar from '@/components/layout/CompareBar'
+import { SavedProvider } from '@/components/SavedContext'
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   return (
     <SessionProvider>
-      {children}
-      <CompareBar />
+      <SavedProvider>
+        {children}
+        <CompareBar />
+      </SavedProvider>
     </SessionProvider>
   )
 }

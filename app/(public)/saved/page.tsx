@@ -39,7 +39,9 @@ export default async function SavedPage() {
       select: { propertyId: true },
     })
     savedIds = rows.map((r: any) => r.propertyId)
-  } catch {}
+  } catch (err) {
+    console.error('[/saved] DB query failed:', err)
+  }
 
   const properties: PropertySummary[] = (
     await Promise.all(savedIds.map(id => adapter.getListing(id).catch(() => null)))

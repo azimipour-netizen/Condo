@@ -12,12 +12,29 @@ interface Props {
   initialMessage?: string
 }
 
+const SESSION_KEY = 'chat_session'
+
+function loadSession() {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY)
+    if (!raw) return null
+    return JSON.parse(raw) as { messages: AIMessage[]; searchResult: SearchResult | null; currentFilters: SearchFilters }
+  } catch { return null }
+}
+
+function saveSession(messages: AIMessage[], searchResult: SearchResult | null, currentFilters: SearchFilters) {
+  try {
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ messages, searchResult, currentFilters }))
+  } catch {}
+}
+
 export default function ChatInterface({ initialMessage }: Props) {
-  const [messages, setMessages] = useState<AIMessage[]>([])
+  const saved = typeof window !== 'undefined' ? loadSession() : null
+  const [messages, setMessages] = useState<AIMessage[]>(saved?.messages ?? [])
   const [input, setInput] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
-  const [searchResult, setSearchResult] = useState<SearchResult | null>(null)
-  const [currentFilters, setCurrentFilters] = useState<SearchFilters>({})
+  const [searchResult, setSearchResult] = useState<SearchResult | null>(saved?.searchResult ?? null)
+  const [currentFilters, setCurrentFilters] = useState<SearchFilters>(saved?.currentFilters ?? {})
   const [menuOpen, setMenuOpen] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -43,6 +60,10 @@ export default function ChatInterface({ initialMessage }: Props) {
       sendMessage(initialMessage)
     }
   }, [initialMessage]) // eslint-disable-line
+
+  useEffect(() => {
+    saveSession(messages, searchResult, currentFilters)
+  }, [messages, searchResult, currentFilters])
 
   async function sendMessage(text: string) {
     const userMsg: AIMessage = {
