@@ -24,6 +24,14 @@ const PROPERTY_TYPES = [
   { key: 'condo', label: 'Condo' },
 ]
 
+const SORT_OPTIONS = [
+  { key: 'default', label: 'Best match' },
+  { key: 'price_asc', label: 'Price: low to high' },
+  { key: 'price_desc', label: 'Price: high to low' },
+  { key: 'bedrooms_desc', label: 'Most bedrooms' },
+  { key: 'listed_desc', label: 'Newest first' },
+] as const
+
 const PRICE_OPTIONS = [
   { label: 'Any price', max: null },
   { label: 'Under $600K', max: 600_000 },
@@ -40,6 +48,8 @@ interface LocalFilters {
 
 export default function PropertyResultsPanel({ result, filters, activeId, onActiveChange }: Props) {
   const [view, setView] = useState<ViewMode>('grid')
+  const [sortBy, setSortBy] = useState<'default' | 'price_asc' | 'price_desc' | 'listed_desc' | 'bedrooms_desc'>('default')
+  const [sortOpen, setSortOpen] = useState(false)
   const [compareIds, setCompareIds] = useState<Set<string>>(new Set())
   const [local, setLocal] = useState<LocalFilters>({ bedsMin: null, types: [], priceMax: null })
   const [priceOpen, setPriceOpen] = useState(false)
@@ -74,8 +84,13 @@ export default function PropertyResultsPanel({ result, filters, activeId, onActi
     if (local.bedsMin !== null) props = props.filter(p => (p.bedrooms ?? 0) >= local.bedsMin!)
     if (local.types.length > 0) props = props.filter(p => local.types.includes(p.propertyType))
     if (local.priceMax !== null) props = props.filter(p => p.price <= local.priceMax!)
-    return props
-  }, [result.properties, local])
+    const arr = [...props]
+    if (sortBy === 'price_asc') arr.sort((a, b) => a.price - b.price)
+    else if (sortBy === 'price_desc') arr.sort((a, b) => b.price - a.price)
+    else if (sortBy === 'bedrooms_desc') arr.sort((a, b) => (b.bedrooms ?? 0) - (a.bedrooms ?? 0))
+    else if (sortBy === 'listed_desc') arr.sort((a, b) => (b.listedAt ?? '').localeCompare(a.listedAt ?? ''))
+    return arr
+  }, [result.properties, local, sortBy])
 
   const hasLocalFilters = local.bedsMin !== null || local.types.length > 0 || local.priceMax !== null
   const activePrice = PRICE_OPTIONS.find(o => o.max === local.priceMax) ?? PRICE_OPTIONS[0]
@@ -105,6 +120,39 @@ export default function PropertyResultsPanel({ result, filters, activeId, onActi
                 Compare {compareIds.size}
               </a>
             )}
+            {/* Sort dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setSortOpen(o => !o)}
+                className="flex items-center gap-1 text-xs text-[color:var(--text-muted)] border border-[color:var(--border)] rounded-lg px-2.5 py-1.5 hover:border-[color:var(--accent)] hover:text-[color:var(--foreground)] transition-colors"
+              >
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="shrink-0">
+                  <path d="M1 3h10M3 6h6M5 9h2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                </svg>
+                <span>{SORT_OPTIONS.find(o => o.key === sortBy)?.label ?? 'Sort'}</span>
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                  <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+              {sortOpen && (
+                <div className="absolute top-full right-0 mt-1 z-20 bg-[color:var(--bg-surface)] border border-[color:var(--border)] rounded-xl shadow-lg overflow-hidden min-w-[160px]">
+                  {SORT_OPTIONS.map(o => (
+                    <button
+                      key={o.key}
+                      onClick={() => { setSortBy(o.key); setSortOpen(false) }}
+                      className={[
+                        'w-full text-left px-3 py-2 text-xs transition-colors',
+                        o.key === sortBy
+                          ? 'bg-[color:var(--accent-dim)] text-[color:var(--accent)] font-semibold'
+                          : 'text-[color:var(--foreground)] hover:bg-[color:var(--bg-surface-2)]',
+                      ].join(' ')}
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <div className="flex rounded-lg border border-[color:var(--border)] overflow-hidden">
               <ViewBtn active={view === 'grid'} onClick={() => setView('grid')} label="Grid"><GridIcon /></ViewBtn>
               <ViewBtn active={view === 'list'} onClick={() => setView('list')} label="List"><ListIcon /></ViewBtn>
@@ -224,7 +272,7 @@ export default function PropertyResultsPanel({ result, filters, activeId, onActi
         </div>
       ) : (
         /* List / Grid view */
-        <div className="flex-1 overflow-y-auto px-6 py-5" onClick={() => setPriceOpen(false)}>
+        <div className="flex-1 overflow-y-auto px-6 py-5" onClick={() => { setPriceOpen(false); setSortOpen(false) }}>
           {filtered.length === 0 ? (
             <div className="text-center py-12 text-[color:var(--text-muted)] text-sm">
               No properties match these filters.{hasLocalFilters && (
