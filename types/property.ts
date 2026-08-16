@@ -55,4 +55,5 @@ export interface PropertySummary {
   title: string
   location: PropertyLocation
   thumbnail: string | null
+  listedAt?: string | null
 }

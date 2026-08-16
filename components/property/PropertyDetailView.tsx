@@ -36,7 +36,21 @@ export default function PropertyDetailView({ property: p, initialSaved, avm }: P
   const [activeImg, setActiveImg] = useState(0)
   const [showModal, setShowModal] = useState(false)
   const [lightbox, setLightbox] = useState(false)
+  const [shareStatus, setShareStatus] = useState<'idle' | 'copied'>('idle')
   const router = useRouter()
+
+  async function handleShare() {
+    const url = typeof window !== 'undefined' ? window.location.href : ''
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: p.title, text: `${p.title} — $${p.price.toLocaleString()}`, url })
+      } catch { /* user cancelled */ }
+    } else {
+      await navigator.clipboard.writeText(url)
+      setShareStatus('copied')
+      setTimeout(() => setShareStatus('idle'), 2000)
+    }
+  }
 
   useEffect(() => {
     if (!lightbox) return
@@ -218,6 +232,23 @@ export default function PropertyDetailView({ property: p, initialSaved, avm }: P
               </div>
 
               <CompareButton propertyId={p.id} />
+
+              <button
+                onClick={handleShare}
+                className="w-full mt-1 flex items-center justify-center gap-2 py-2.5 border border-[color:var(--border)] rounded-xl text-sm text-[color:var(--text-muted)] hover:text-[color:var(--foreground)] hover:border-[color:var(--foreground)] transition-colors"
+              >
+                {shareStatus === 'copied' ? (
+                  <>
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7L5.5 10.5L12 3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                    Link copied!
+                  </>
+                ) : (
+                  <>
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="11" cy="2.5" r="1.5" stroke="currentColor" strokeWidth="1.3" /><circle cx="11" cy="11.5" r="1.5" stroke="currentColor" strokeWidth="1.3" /><circle cx="2.5" cy="7" r="1.5" stroke="currentColor" strokeWidth="1.3" /><path d="M4 6.2L9.6 3.3M4 7.8L9.6 10.7" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" /></svg>
+                    Share listing
+                  </>
+                )}
+              </button>
             </div>
 
             {/* Mortgage Calculator — sale listings only */}
