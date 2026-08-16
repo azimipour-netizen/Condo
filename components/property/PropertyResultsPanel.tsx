@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import type { SearchResult, SearchFilters } from '@/types/search'
 import PropertyCard from './PropertyCard'
 import type { PropertySummary } from '@/types/property'
@@ -14,9 +14,32 @@ interface Props {
 
 type ViewMode = 'list' | 'grid'
 
+const PROPERTY_TYPES = [
+  { key: 'detached', label: 'Detached' },
+  { key: 'semi-detached', label: 'Semi' },
+  { key: 'townhouse', label: 'Townhouse' },
+  { key: 'condo', label: 'Condo' },
+]
+
+const PRICE_OPTIONS = [
+  { label: 'Any price', max: null },
+  { label: 'Under $600K', max: 600_000 },
+  { label: 'Under $800K', max: 800_000 },
+  { label: 'Under $1.2M', max: 1_200_000 },
+  { label: 'Under $1.8M', max: 1_800_000 },
+]
+
+interface LocalFilters {
+  bedsMin: number | null
+  types: string[]
+  priceMax: number | null
+}
+
 export default function PropertyResultsPanel({ result, filters, activeId, onActiveChange }: Props) {
   const [view, setView] = useState<ViewMode>('grid')
   const [compareIds, setCompareIds] = useState<Set<string>>(new Set())
+  const [local, setLocal] = useState<LocalFilters>({ bedsMin: null, types: [], priceMax: null })
+  const [priceOpen, setPriceOpen] = useState(false)
 
   function toggleCompare(id: string) {
     setCompareIds(prev => {
@@ -27,46 +50,150 @@ export default function PropertyResultsPanel({ result, filters, activeId, onActi
     })
   }
 
+  function toggleType(key: string) {
+    setLocal(prev => ({
+      ...prev,
+      types: prev.types.includes(key) ? prev.types.filter(t => t !== key) : [...prev.types, key],
+    }))
+  }
+
+  function setBeds(n: number | null) {
+    setLocal(prev => ({ ...prev, bedsMin: prev.bedsMin === n ? null : n }))
+  }
+
+  function setPriceMax(max: number | null) {
+    setLocal(prev => ({ ...prev, priceMax: max }))
+    setPriceOpen(false)
+  }
+
+  const filtered = useMemo(() => {
+    let props = result.properties
+    if (local.bedsMin !== null) props = props.filter(p => (p.bedrooms ?? 0) >= local.bedsMin!)
+    if (local.types.length > 0) props = props.filter(p => local.types.includes(p.propertyType))
+    if (local.priceMax !== null) props = props.filter(p => p.price <= local.priceMax!)
+    return props
+  }, [result.properties, local])
+
+  const hasLocalFilters = local.bedsMin !== null || local.types.length > 0 || local.priceMax !== null
+  const activePrice = PRICE_OPTIONS.find(o => o.max === local.priceMax) ?? PRICE_OPTIONS[0]
+
   return (
     <div className="flex flex-col h-full">
-      {/* Results header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-[color:var(--border)]">
-        <div>
-          <p className="text-sm font-semibold text-[color:var(--foreground)]">
-            {result.total.toLocaleString()} {result.total === 1 ? 'property' : 'properties'} found
-          </p>
-          {filters.location?.value && (
-            <p className="text-xs text-[color:var(--text-muted)] mt-0.5">
-              Near {filters.location.value}
+      {/* Header */}
+      <div className="px-6 py-3 border-b border-[color:var(--border)]">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <p className="text-sm font-semibold text-[color:var(--foreground)]">
+              {filtered.length !== result.total
+                ? `${filtered.length} of ${result.total.toLocaleString()} ${result.total === 1 ? 'property' : 'properties'}`
+                : `${result.total.toLocaleString()} ${result.total === 1 ? 'property' : 'properties'} found`}
             </p>
-          )}
+            {filters.location?.value && (
+              <p className="text-xs text-[color:var(--text-muted)] mt-0.5">Near {filters.location.value}</p>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            {compareIds.size > 0 && (
+              <a
+                href={`/compare?ids=${[...compareIds].join(',')}`}
+                className="text-xs font-semibold text-[color:var(--accent)] border border-[color:var(--accent)] rounded-lg px-3 py-1.5 hover:bg-[color:var(--accent-dim)] transition-colors"
+              >
+                Compare {compareIds.size}
+              </a>
+            )}
+            <div className="flex rounded-lg border border-[color:var(--border)] overflow-hidden">
+              <ViewBtn active={view === 'grid'} onClick={() => setView('grid')} label="Grid"><GridIcon /></ViewBtn>
+              <ViewBtn active={view === 'list'} onClick={() => setView('list')} label="List"><ListIcon /></ViewBtn>
+            </div>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {compareIds.size > 0 && (
-            <a
-              href={`/compare?ids=${[...compareIds].join(',')}`}
-              className="text-xs font-semibold text-[color:var(--accent)] border border-[color:var(--accent)] rounded-lg px-3 py-1.5 hover:bg-[color:var(--accent-dim)] transition-colors"
-            >
-              Compare {compareIds.size}
-            </a>
-          )}
-          <div className="flex rounded-lg border border-[color:var(--border)] overflow-hidden">
-            <ViewBtn active={view === 'grid'} onClick={() => setView('grid')} label="Grid">
-              <GridIcon />
-            </ViewBtn>
-            <ViewBtn active={view === 'list'} onClick={() => setView('list')} label="List">
-              <ListIcon />
-            </ViewBtn>
+        {/* Filter chips row */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Beds */}
+          <div className="flex items-center gap-1">
+            <span className="text-xs text-[color:var(--text-faint)] mr-0.5">Beds</span>
+            {[2, 3, 4].map(n => (
+              <Chip
+                key={n}
+                active={local.bedsMin === n}
+                onClick={() => setBeds(n)}
+              >
+                {n}+
+              </Chip>
+            ))}
           </div>
+
+          <div className="w-px h-5 bg-[color:var(--border)]" />
+
+          {/* Property type */}
+          <div className="flex items-center gap-1">
+            {PROPERTY_TYPES.map(t => (
+              <Chip
+                key={t.key}
+                active={local.types.includes(t.key)}
+                onClick={() => toggleType(t.key)}
+              >
+                {t.label}
+              </Chip>
+            ))}
+          </div>
+
+          <div className="w-px h-5 bg-[color:var(--border)]" />
+
+          {/* Price */}
+          <div className="relative">
+            <Chip active={local.priceMax !== null} onClick={() => setPriceOpen(p => !p)}>
+              {activePrice.label}
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className="ml-1">
+                <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </Chip>
+            {priceOpen && (
+              <div className="absolute top-full left-0 mt-1 z-20 bg-[color:var(--bg-surface)] border border-[color:var(--border)] rounded-xl shadow-lg overflow-hidden min-w-[140px]">
+                {PRICE_OPTIONS.map(o => (
+                  <button
+                    key={o.label}
+                    onClick={() => setPriceMax(o.max)}
+                    className={[
+                      'w-full text-left px-3 py-2 text-xs transition-colors',
+                      o.max === local.priceMax
+                        ? 'bg-[color:var(--accent-dim)] text-[color:var(--accent)] font-semibold'
+                        : 'text-[color:var(--foreground)] hover:bg-[color:var(--bg-surface-2)]',
+                    ].join(' ')}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Clear local filters */}
+          {hasLocalFilters && (
+            <button
+              onClick={() => setLocal({ bedsMin: null, types: [], priceMax: null })}
+              className="text-xs text-[color:var(--text-muted)] hover:text-[color:var(--foreground)] transition-colors underline underline-offset-2 ml-1"
+            >
+              Clear
+            </button>
+          )}
         </div>
       </div>
 
       {/* Cards */}
-      <div className="flex-1 overflow-y-auto px-6 py-5">
-        {result.properties.length === 0 ? (
+      <div className="flex-1 overflow-y-auto px-6 py-5" onClick={() => setPriceOpen(false)}>
+        {filtered.length === 0 ? (
           <div className="text-center py-12 text-[color:var(--text-muted)] text-sm">
-            No properties match the current filters. Try broadening your search.
+            No properties match these filters.{hasLocalFilters && (
+              <button
+                onClick={() => setLocal({ bedsMin: null, types: [], priceMax: null })}
+                className="ml-1 text-[color:var(--accent)] hover:underline"
+              >
+                Clear filters
+              </button>
+            )}
           </div>
         ) : (
           <div
@@ -76,7 +203,7 @@ export default function PropertyResultsPanel({ result, filters, activeId, onActi
                 : 'flex flex-col gap-3'
             }
           >
-            {result.properties.map((p: PropertySummary) => (
+            {filtered.map((p: PropertySummary) => (
               <div
                 key={p.id}
                 id={`card-${p.id}`}
@@ -100,11 +227,24 @@ export default function PropertyResultsPanel({ result, filters, activeId, onActi
   )
 }
 
+function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className={[
+        'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium transition-colors border',
+        active
+          ? 'bg-[color:var(--accent)] text-white border-[color:var(--accent)]'
+          : 'bg-transparent text-[color:var(--text-muted)] border-[color:var(--border)] hover:border-[color:var(--accent)] hover:text-[color:var(--foreground)]',
+      ].join(' ')}
+    >
+      {children}
+    </button>
+  )
+}
+
 function ViewBtn({ active, onClick, label, children }: {
-  active: boolean
-  onClick: () => void
-  label: string
-  children: React.ReactNode
+  active: boolean; onClick: () => void; label: string; children: React.ReactNode
 }) {
   return (
     <button
