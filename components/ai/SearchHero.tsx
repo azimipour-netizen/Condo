@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import ChatInterface from './ChatInterface'
+import RecentlyViewed from '@/components/property/RecentlyViewed'
 
 const SUGGESTED_PROMPTS = [
   '3-bedroom home under $1.5M near transit',
@@ -117,8 +118,13 @@ export default function SearchHero() {
           ))}
         </div>
 
+        {/* Recently viewed */}
+        <div className="mt-10 w-full max-w-2xl">
+          <RecentlyViewed />
+        </div>
+
         {/* Trust line */}
-        <p className="mt-16 text-xs text-[color:var(--text-faint)] text-center">
+        <p className="mt-8 text-xs text-[color:var(--text-faint)] text-center">
           Authorized MLS data · GTA &amp; surrounding regions · All listings from verified sources
         </p>
       </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -10,6 +10,7 @@ import SaveButton from './SaveButton'
 import PropertyQA from './PropertyQA'
 import MortgageCalculator from './MortgageCalculator'
 import CompareButton from './CompareButton'
+import { recordView } from '@/lib/recently-viewed'
 
 const SinglePropertyMap = dynamic(() => import('@/components/map/SinglePropertyMap'), { ssr: false })
 
@@ -35,6 +36,18 @@ export default function PropertyDetailView({ property: p, initialSaved, avm }: P
   const [activeImg, setActiveImg] = useState(0)
   const [showModal, setShowModal] = useState(false)
   const router = useRouter()
+
+  useEffect(() => {
+    recordView({
+      id: p.id,
+      title: p.title,
+      price: p.price,
+      thumbnail: p.images[0]?.url ?? null,
+      propertyType: p.propertyType,
+      city: p.location.city,
+      bedrooms: p.bedrooms,
+    })
+  }, []) // eslint-disable-line
 
   const displayLocation = [p.location.address, p.location.neighbourhood, p.location.city]
     .filter(Boolean).join(', ')
