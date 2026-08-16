@@ -35,7 +35,19 @@ const TYPE_LABELS: Record<string, string> = {
 export default function PropertyDetailView({ property: p, initialSaved, avm }: Props) {
   const [activeImg, setActiveImg] = useState(0)
   const [showModal, setShowModal] = useState(false)
+  const [lightbox, setLightbox] = useState(false)
   const router = useRouter()
+
+  useEffect(() => {
+    if (!lightbox) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setLightbox(false)
+      if (e.key === 'ArrowRight') setActiveImg(i => (i + 1) % p.images.length)
+      if (e.key === 'ArrowLeft') setActiveImg(i => (i - 1 + p.images.length) % p.images.length)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [lightbox, p.images.length])
 
   useEffect(() => {
     recordView({
@@ -78,12 +90,20 @@ export default function PropertyDetailView({ property: p, initialSaved, avm }: P
             {/* Image gallery */}
             {p.images.length > 0 && (
               <div className="mb-6">
-                <div className="aspect-[16/10] rounded-2xl overflow-hidden bg-[color:var(--bg-surface-2)] mb-2">
+                <div
+                  className="aspect-[16/10] rounded-2xl overflow-hidden bg-[color:var(--bg-surface-2)] mb-2 relative group cursor-zoom-in"
+                  onClick={() => setLightbox(true)}
+                >
                   <img
                     src={p.images[activeImg]?.url}
                     alt={p.images[activeImg]?.alt ?? p.title}
                     className="w-full h-full object-cover"
                   />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-end justify-end p-3">
+                    <span className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 text-white text-xs px-2 py-1 rounded-lg backdrop-blur-sm">
+                      {p.images.length > 1 ? `1 / ${p.images.length} · Click to expand` : 'Click to expand'}
+                    </span>
+                  </div>
                 </div>
                 {p.images.length > 1 && (
                   <div className="flex gap-2 overflow-x-auto pb-1">
@@ -245,6 +265,72 @@ export default function PropertyDetailView({ property: p, initialSaved, avm }: P
 
       {showModal && (
         <ShowingRequestModal property={p} onClose={() => setShowModal(false)} />
+      )}
+
+      {/* Lightbox */}
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-50 bg-black/95 flex flex-col"
+          onClick={() => setLightbox(false)}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 py-3 shrink-0" onClick={e => e.stopPropagation()}>
+            <span className="text-white/60 text-sm">{activeImg + 1} / {p.images.length}</span>
+            <button
+              onClick={() => setLightbox(false)}
+              className="text-white/70 hover:text-white transition-colors p-1.5"
+              aria-label="Close"
+            >
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <path d="M4 4L16 16M16 4L4 16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Main image */}
+          <div className="flex-1 flex items-center justify-center px-4 min-h-0" onClick={e => e.stopPropagation()}>
+            <img
+              src={p.images[activeImg]?.url}
+              alt={p.images[activeImg]?.alt ?? p.title}
+              className="max-w-full max-h-full object-contain rounded-lg"
+            />
+          </div>
+
+          {/* Prev/Next */}
+          {p.images.length > 1 && (
+            <div className="flex items-center justify-center gap-4 py-4 shrink-0" onClick={e => e.stopPropagation()}>
+              <button
+                onClick={() => setActiveImg(i => (i - 1 + p.images.length) % p.images.length)}
+                className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8L10 13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              </button>
+
+              {/* Thumbnail strip */}
+              <div className="flex gap-1.5 max-w-sm overflow-x-auto">
+                {p.images.map((img, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setActiveImg(i)}
+                    className={[
+                      'shrink-0 w-12 h-9 rounded overflow-hidden transition-opacity',
+                      i === activeImg ? 'ring-2 ring-white opacity-100' : 'opacity-50 hover:opacity-80',
+                    ].join(' ')}
+                  >
+                    <img src={img.url} alt="" className="w-full h-full object-cover" />
+                  </button>
+                ))}
+              </div>
+
+              <button
+                onClick={() => setActiveImg(i => (i + 1) % p.images.length)}
+                className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 3L11 8L6 13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              </button>
+            </div>
+          )}
+        </div>
       )}
     </div>
   )
