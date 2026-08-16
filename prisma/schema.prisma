@@ -146,6 +146,7 @@ model Property {
 
   images          PropertyImage[]
   showingRequests ShowingRequest[]
+  openHouses      OpenHouse[]
 
   @@index([status])
   @@index([propertyType])
@@ -220,6 +221,20 @@ model ShowingRequest {
 
   @@index([status])
   @@index([propertyId])
+}
+
+model OpenHouse {
+  id         String   @id @default(uuid())
+  propertyId String
+  startsAt   DateTime
+  endsAt     DateTime
+  notes      String?
+  createdAt  DateTime @default(now())
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId])
+  @@index([startsAt])
 }
 
 model SyncJob {

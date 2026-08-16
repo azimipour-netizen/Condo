@@ -35,6 +35,16 @@ const NAV = [
       </svg>
     ),
   },
+  {
+    href: '/account/settings',
+    label: 'Settings',
+    icon: (
+      <svg width="15" height="15" viewBox="0 0 14 14" fill="none">
+        <circle cx="7" cy="7" r="2" stroke="currentColor" strokeWidth="1.3" />
+        <path d="M7 1v1.5M7 11.5V13M1 7h1.5M11.5 7H13M2.636 2.636l1.06 1.06M10.304 10.304l1.06 1.06M2.636 11.364l1.06-1.06M10.304 3.696l1.06-1.06" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      </svg>
+    ),
+  },
 ]
 
 export default function AccountNavClient() {

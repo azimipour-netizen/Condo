@@ -11,6 +11,7 @@ import PropertyQA from './PropertyQA'
 import MortgageCalculator from './MortgageCalculator'
 import CompareButton from './CompareButton'
 import { recordView } from '@/lib/recently-viewed'
+import OpenHouseSection from './OpenHouseSection'
 
 const SinglePropertyMap = dynamic(() => import('@/components/map/SinglePropertyMap'), { ssr: false })
 
@@ -259,6 +260,9 @@ export default function PropertyDetailView({ property: p, initialSaved, avm }: P
                 propertyTaxes={p.taxes}
               />
             )}
+
+            {/* Open Houses */}
+            <OpenHouseSection propertyId={p.id} />
 
             {/* Location */}
             <div className="bg-[color:var(--bg-surface)] border border-[color:var(--border)] rounded-2xl p-5">
