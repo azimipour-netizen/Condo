@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { db } from '@/lib/db'
+import { notify } from '@/lib/notify'
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id: propertyId } = await params
@@ -37,5 +38,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       answers: [],
     },
   })
+
+  const appUrl = process.env.NEXTAUTH_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+  notify(
+    `❓ <b>New Q&amp;A Question</b>\n` +
+    `👤 ${session.user.name ?? session.user.email}\n` +
+    `💬 ${text.trim()}\n` +
+    `👉 ${appUrl}/property/${propertyId}`
+  )
+
   return NextResponse.json({ question })
 }

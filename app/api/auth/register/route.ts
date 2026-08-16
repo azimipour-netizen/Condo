@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import bcrypt from 'bcryptjs'
 import { db } from '@/lib/db'
+import { notify } from '@/lib/notify'
 
 const RegisterSchema = z.object({
   name: z.string().min(2).max(80),
@@ -23,6 +24,8 @@ export async function POST(req: NextRequest) {
     const passwordHash = await bcrypt.hash(password, 12)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (db as any).user.create({ data: { name, email, passwordHash } })
+
+    notify(`👤 <b>New User Registered</b>\n${name} &lt;${email}&gt;`)
 
     return NextResponse.json({ ok: true })
   } catch (err) {

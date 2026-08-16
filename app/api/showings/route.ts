@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
+import { notify } from '@/lib/notify'
 
 const ShowingSchema = z.object({
   propertyId: z.string().min(1),
@@ -40,6 +41,19 @@ export async function POST(req: NextRequest) {
     } catch (dbErr) {
       // DB not yet set up — log and continue so the API still responds OK
       console.error('[SHOWING] DB insert failed:', dbErr)
+    }
+
+    // Telegram notification
+    if (saved) {
+      const appUrl = process.env.NEXTAUTH_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+      notify(
+        `🏠 <b>New Showing Request</b>\n` +
+        `👤 ${data.name} &lt;${data.email}&gt;${data.phone ? ` · ${data.phone}` : ''}\n` +
+        `📋 Listing: ${data.listingId}\n` +
+        `📅 ${data.preferredDate}${data.preferredTime ? ' at ' + data.preferredTime : ''}\n` +
+        `${data.message ? `💬 ${data.message}\n` : ''}` +
+        `👉 ${appUrl}/dashboard/showings`
+      )
     }
 
     // Send email notification via Resend if configured
