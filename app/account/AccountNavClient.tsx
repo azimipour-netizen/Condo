@@ -24,6 +24,17 @@ const NAV = [
       </svg>
     ),
   },
+  {
+    href: '/account/saved-searches',
+    label: 'Saved Searches',
+    icon: (
+      <svg width="15" height="15" viewBox="0 0 14 14" fill="none">
+        <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.4" />
+        <path d="M10 10L13 13" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+        <path d="M4 6h4M6 4v4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      </svg>
+    ),
+  },
 ]
 
 export default function AccountNavClient() {

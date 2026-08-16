@@ -50,6 +50,9 @@ export default function PropertyResultsPanel({ result, filters, activeId, onActi
   const [view, setView] = useState<ViewMode>('grid')
   const [sortBy, setSortBy] = useState<'default' | 'price_asc' | 'price_desc' | 'listed_desc' | 'bedrooms_desc'>('default')
   const [sortOpen, setSortOpen] = useState(false)
+  const [saveOpen, setSaveOpen] = useState(false)
+  const [saveName, setSaveName] = useState('')
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [compareIds, setCompareIds] = useState<Set<string>>(new Set())
   const [local, setLocal] = useState<LocalFilters>({ bedsMin: null, types: [], priceMax: null })
   const [priceOpen, setPriceOpen] = useState(false)
@@ -77,6 +80,26 @@ export default function PropertyResultsPanel({ result, filters, activeId, onActi
   function setPriceMax(max: number | null) {
     setLocal(prev => ({ ...prev, priceMax: max }))
     setPriceOpen(false)
+  }
+
+  async function saveSearch() {
+    if (!saveName.trim()) return
+    setSaveStatus('saving')
+    try {
+      const res = await fetch('/api/account/saved-searches', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: saveName, filters }),
+      })
+      if (res.ok) {
+        setSaveStatus('saved')
+        setTimeout(() => { setSaveOpen(false); setSaveStatus('idle'); setSaveName('') }, 1200)
+      } else {
+        setSaveStatus('error')
+      }
+    } catch {
+      setSaveStatus('error')
+    }
   }
 
   const filtered = useMemo(() => {
@@ -120,6 +143,44 @@ export default function PropertyResultsPanel({ result, filters, activeId, onActi
                 Compare {compareIds.size}
               </a>
             )}
+            {/* Save search */}
+            <div className="relative">
+              <button
+                onClick={() => setSaveOpen(o => !o)}
+                className="flex items-center gap-1 text-xs text-[color:var(--text-muted)] border border-[color:var(--border)] rounded-lg px-2.5 py-1.5 hover:border-[color:var(--accent)] hover:text-[color:var(--foreground)] transition-colors"
+                title="Save this search as an alert"
+              >
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                  <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                </svg>
+                Save
+              </button>
+              {saveOpen && (
+                <div className="absolute top-full right-0 mt-1 z-30 bg-[color:var(--bg-surface)] border border-[color:var(--border)] rounded-xl shadow-lg p-3 min-w-[220px]">
+                  <p className="text-xs font-semibold text-[color:var(--foreground)] mb-2">Save this search</p>
+                  <input
+                    type="text"
+                    value={saveName}
+                    onChange={e => setSaveName(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') saveSearch() }}
+                    placeholder="e.g. North York detached"
+                    className="w-full text-xs bg-[color:var(--bg-surface-2)] border border-[color:var(--border)] rounded-lg px-2.5 py-2 text-[color:var(--foreground)] placeholder:text-[color:var(--text-faint)] outline-none focus:border-[color:var(--accent)] mb-2"
+                    autoFocus
+                  />
+                  <button
+                    onClick={saveSearch}
+                    disabled={saveStatus === 'saving' || !saveName.trim()}
+                    className="w-full text-xs font-semibold py-1.5 rounded-lg bg-[color:var(--accent)] text-white disabled:opacity-40 hover:opacity-90 transition-opacity"
+                  >
+                    {saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? 'Saved!' : saveStatus === 'error' ? 'Error – try again' : 'Save alert'}
+                  </button>
+                  {saveStatus === 'error' && (
+                    <p className="text-[10px] text-red-400 mt-1">Must be signed in to save searches.</p>
+                  )}
+                </div>
+              )}
+            </div>
+
             {/* Sort dropdown */}
             <div className="relative">
               <button
