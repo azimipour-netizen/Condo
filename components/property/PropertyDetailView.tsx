@@ -13,9 +13,17 @@ import CompareButton from './CompareButton'
 
 const SinglePropertyMap = dynamic(() => import('@/components/map/SinglePropertyMap'), { ssr: false })
 
+interface AVM {
+  estimate: number
+  low: number
+  high: number
+  comparableCount: number
+}
+
 interface Props {
   property: Property
   initialSaved?: boolean
+  avm?: AVM | null
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -23,7 +31,7 @@ const TYPE_LABELS: Record<string, string> = {
   condo: 'Condo', multiplex: 'Multiplex', vacant_land: 'Vacant Land', commercial: 'Commercial',
 }
 
-export default function PropertyDetailView({ property: p, initialSaved }: Props) {
+export default function PropertyDetailView({ property: p, initialSaved, avm }: Props) {
   const [activeImg, setActiveImg] = useState(0)
   const [showModal, setShowModal] = useState(false)
   const router = useRouter()
@@ -151,7 +159,19 @@ export default function PropertyDetailView({ property: p, initialSaved }: Props)
               <p className="text-3xl font-bold tabular text-[color:var(--foreground)] mb-1">
                 ${p.price.toLocaleString()}
               </p>
-              <p className="text-sm text-[color:var(--text-muted)] mb-6">{TYPE_LABELS[p.propertyType]} · {p.location.city}</p>
+              <p className="text-sm text-[color:var(--text-muted)] mb-4">{TYPE_LABELS[p.propertyType]} · {p.location.city}</p>
+
+              {avm && (
+                <div className="mb-5 p-3 rounded-xl bg-[color:var(--bg-surface-2)] border border-[color:var(--border)]">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--text-muted)] mb-1">Estimated Market Value</p>
+                  <p className="text-base font-bold text-[color:var(--foreground)] tabular">
+                    ${avm.low.toLocaleString()} – ${avm.high.toLocaleString()}
+                  </p>
+                  <p className="text-[11px] text-[color:var(--text-faint)] mt-0.5">
+                    Based on {avm.comparableCount} comparable listing{avm.comparableCount !== 1 ? 's' : ''}
+                  </p>
+                </div>
+              )}
 
               <button
                 onClick={() => setShowModal(true)}
