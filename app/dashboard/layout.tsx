@@ -25,6 +25,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <NavLink href="/dashboard/showings" label="Showings" icon="◷" />
           <NavLink href="/dashboard/questions" label="Questions" icon="?" />
           <NavLink href="/dashboard/documents" label="Documents" icon="⊟" />
+          <NavLink href="/dashboard/users" label="Users" icon="⊙" />
           <div className="mt-2 pt-2 border-t border-[color:var(--border)]">
             <NavLink href="/account/favorites" label="My Favorite Listings" icon="♡" />
           </div>
