@@ -1,9 +1,12 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import dynamic from 'next/dynamic'
 import type { SearchResult, SearchFilters } from '@/types/search'
 import PropertyCard from './PropertyCard'
 import type { PropertySummary } from '@/types/property'
+
+const PropertyMap = dynamic(() => import('@/components/map/PropertyMap'), { ssr: false })
 
 interface Props {
   result: SearchResult
@@ -12,7 +15,7 @@ interface Props {
   onActiveChange?: (id: string | null) => void
 }
 
-type ViewMode = 'list' | 'grid'
+type ViewMode = 'list' | 'grid' | 'map'
 
 const PROPERTY_TYPES = [
   { key: 'detached', label: 'Detached' },
@@ -105,6 +108,7 @@ export default function PropertyResultsPanel({ result, filters, activeId, onActi
             <div className="flex rounded-lg border border-[color:var(--border)] overflow-hidden">
               <ViewBtn active={view === 'grid'} onClick={() => setView('grid')} label="Grid"><GridIcon /></ViewBtn>
               <ViewBtn active={view === 'list'} onClick={() => setView('list')} label="List"><ListIcon /></ViewBtn>
+              <ViewBtn active={view === 'map'} onClick={() => setView('map')} label="Map"><MapIcon /></ViewBtn>
             </div>
           </div>
         </div>
@@ -182,37 +186,33 @@ export default function PropertyResultsPanel({ result, filters, activeId, onActi
         </div>
       </div>
 
-      {/* Cards */}
-      <div className="flex-1 overflow-y-auto px-6 py-5" onClick={() => setPriceOpen(false)}>
-        {filtered.length === 0 ? (
-          <div className="text-center py-12 text-[color:var(--text-muted)] text-sm">
-            No properties match these filters.{hasLocalFilters && (
-              <button
-                onClick={() => setLocal({ bedsMin: null, types: [], priceMax: null })}
-                className="ml-1 text-[color:var(--accent)] hover:underline"
-              >
-                Clear filters
-              </button>
-            )}
-          </div>
-        ) : (
-          <div
-            className={
-              view === 'grid'
-                ? 'grid grid-cols-1 xl:grid-cols-2 gap-4'
-                : 'flex flex-col gap-3'
-            }
-          >
-            {filtered.map((p: PropertySummary) => (
+      {/* Map view */}
+      {view === 'map' ? (
+        <div className="flex flex-1 min-h-0 overflow-hidden">
+          <PropertyMap
+            properties={filtered}
+            activeId={activeId}
+            onMarkerClick={id => {
+              onActiveChange?.(id)
+              const el = document.getElementById(`map-card-${id}`)
+              el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+            }}
+            className="flex-1 h-full"
+          />
+          {/* Thin card strip on the right */}
+          <div className="w-72 shrink-0 overflow-y-auto border-l border-[color:var(--border)] bg-[color:var(--bg-surface)] px-3 py-3 flex flex-col gap-2">
+            {filtered.length === 0 ? (
+              <p className="text-xs text-[color:var(--text-muted)] text-center pt-8">No properties match.</p>
+            ) : filtered.map((p: PropertySummary) => (
               <div
                 key={p.id}
-                id={`card-${p.id}`}
+                id={`map-card-${p.id}`}
                 onMouseEnter={() => onActiveChange?.(p.id)}
                 onMouseLeave={() => onActiveChange?.(null)}
               >
                 <PropertyCard
                   property={p}
-                  compact={view === 'list'}
+                  compact
                   isSelected={compareIds.has(p.id)}
                   isActive={activeId === p.id}
                   onToggleCompare={() => toggleCompare(p.id)}
@@ -221,8 +221,50 @@ export default function PropertyResultsPanel({ result, filters, activeId, onActi
               </div>
             ))}
           </div>
-        )}
-      </div>
+        </div>
+      ) : (
+        /* List / Grid view */
+        <div className="flex-1 overflow-y-auto px-6 py-5" onClick={() => setPriceOpen(false)}>
+          {filtered.length === 0 ? (
+            <div className="text-center py-12 text-[color:var(--text-muted)] text-sm">
+              No properties match these filters.{hasLocalFilters && (
+                <button
+                  onClick={() => setLocal({ bedsMin: null, types: [], priceMax: null })}
+                  className="ml-1 text-[color:var(--accent)] hover:underline"
+                >
+                  Clear filters
+                </button>
+              )}
+            </div>
+          ) : (
+            <div
+              className={
+                view === 'grid'
+                  ? 'grid grid-cols-1 xl:grid-cols-2 gap-4'
+                  : 'flex flex-col gap-3'
+              }
+            >
+              {filtered.map((p: PropertySummary) => (
+                <div
+                  key={p.id}
+                  id={`card-${p.id}`}
+                  onMouseEnter={() => onActiveChange?.(p.id)}
+                  onMouseLeave={() => onActiveChange?.(null)}
+                >
+                  <PropertyCard
+                    property={p}
+                    compact={view === 'list'}
+                    isSelected={compareIds.has(p.id)}
+                    isActive={activeId === p.id}
+                    onToggleCompare={() => toggleCompare(p.id)}
+                    canCompare={compareIds.size < 4 || compareIds.has(p.id)}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -277,6 +319,15 @@ function ListIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
       <path d="M1 3.5H13M1 7H13M1 10.5H13" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function MapIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path d="M5 1L1 3V13L5 11L9 13L13 11V1L9 3L5 1Z" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M5 1V11M9 3V13" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
     </svg>
   )
 }
