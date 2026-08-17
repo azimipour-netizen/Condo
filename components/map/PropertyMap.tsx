@@ -70,6 +70,7 @@ export default function PropertyMap({ properties, activeId, onMarkerClick, onBou
   const markersRef = useRef<Map<string, google.maps.marker.AdvancedMarkerElement>>(new Map())
   const clustererRef = useRef<MarkerClusterer | null>(null)
   const initRef = useRef(false)
+  const fittedRef = useRef(false)
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY ?? ''
 
   // Init map
@@ -175,7 +176,8 @@ export default function PropertyMap({ properties, activeId, onMarkerClick, onBou
       clustererRef.current.addMarkers(newMarkers)
     }
 
-    if (hasPos) {
+    if (hasPos && !fittedRef.current) {
+      fittedRef.current = true
       map.fitBounds(bounds, 60)
       const l = map.addListener('bounds_changed', () => {
         if ((map.getZoom() ?? 0) > 15) map.setZoom(15)

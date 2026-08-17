@@ -260,8 +260,24 @@ export class PropTxAdapter implements IMLSAdapter {
         $top:    String(limit),
         $skip:   String(skip),
         // AMPRE: nested $select inside $expand returns empty body — use bare $expand=Media
-        // $select omitted: including TRREB-specific fields causes AMPRE to return 400
+        // Only include confirmed RESO Data Dictionary fields; TRREB-specific fields
+        // (KitchensTotal, Basement1, CrossStreet, HeatType, ListPriceUnit) cause 400.
         $expand: 'Media',
+        $select: [
+          'ListingKey','StandardStatus','TransactionType',
+          'ListPrice',
+          'PropertyType','PropertySubType',
+          'BedroomsTotal','BedroomsAboveGrade','BedroomsBelowGrade',
+          'BathroomsTotalInteger','ParkingTotal',
+          'BuildingAreaTotal','LotSizeArea','LotSizeUnits',
+          'AssociationFee','TaxAnnualAmount',
+          'UnparsedAddress','StreetNumber','StreetName','StreetSuffix',
+          'City','CityRegion','StateOrProvince','PostalCode',
+          'PublicRemarks',
+          'OriginalEntryTimestamp','ModificationTimestamp',
+          'VirtualTourURLUnbranded','VirtualTourURLBranded',
+          'RoomsTotal','DaysOnMarket',
+        ].join(','),
         $orderby: 'ModificationTimestamp desc',
       }),
       reso<{ '@odata.count': number }>('Property/$count', { $filter }).catch(() => null),
