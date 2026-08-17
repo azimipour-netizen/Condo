@@ -259,10 +259,9 @@ export class PropTxAdapter implements IMLSAdapter {
         $filter,
         $top:    String(limit),
         $skip:   String(skip),
-        // AMPRE: nested $select inside $expand returns empty body — use bare $expand=Media
-        // Only include confirmed RESO Data Dictionary fields; TRREB-specific fields
-        // (KitchensTotal, Basement1, CrossStreet, HeatType, ListPriceUnit) cause 400.
-        $expand: 'Media',
+        // $expand=Media omitted: each listing returns 20-40 image URLs, pushing
+        // 20 results to 5MB which exceeds Next.js 2MB cache limit. Images are
+        // loaded on the individual property page via getListing().
         $select: [
           'ListingKey','StandardStatus','TransactionType',
           'ListPrice',

@@ -4,7 +4,10 @@
  * Canadian postal codes are precise enough for map pin placement (~half-block radius).
  */
 
-const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY ?? ''
+// GOOGLE_MAPS_API_KEY = server-only key with no referrer restriction (Vercel)
+// NEXT_PUBLIC_GOOGLE_MAPS_KEY has HTTP referrer restriction (condohill.com) which
+// blocks server-side geocoding calls from Vercel — no Referer header → Google 403
+const API_KEY = process.env.GOOGLE_MAPS_API_KEY ?? process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY ?? ''
 
 // In-process cache keyed by postal code (reset on cold start)
 const cache = new Map<string, { lat: number; lng: number } | null>()
