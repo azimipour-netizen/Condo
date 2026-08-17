@@ -1,7 +1,8 @@
-import { notFound } from 'next/navigation'
+﻿import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { getMLSAdapter } from '@/lib/mls/adapter'
 import PropertyDetailView from '@/components/property/PropertyDetailView'
+import RecentlyViewed from '@/components/RecentlyViewed'
 import { auth } from '@/auth'
 import { db } from '@/lib/db'
 
@@ -14,9 +15,26 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const adapter = getMLSAdapter()
   const property = await adapter.getListing(id)
   if (!property) return { title: 'Property Not Found' }
+
+  const title = `${property.title} — $${property.price.toLocaleString()}`
+  const description = property.description.slice(0, 155)
+  const image = property.images[0]?.url
+
   return {
-    title: `${property.title} — $${property.price.toLocaleString()}`,
-    description: property.description.slice(0, 155),
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      type: 'website',
+      images: image ? [{ url: image, width: 1200, height: 630, alt: property.title }] : [],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: image ? [image] : [],
+    },
   }
 }
 
@@ -37,29 +55,96 @@ export default async function PropertyDetailPage({ params }: Props) {
     }
   } catch {}
 
-  // Compute AVM from comparables
+  // Compute AVM from comparables — prefer sold, fallback to active
   let avm: { low: number; high: number; estimate: number; comparableCount: number } | null = null
-  if (property.sqft) {
+  if (property.sqft && property.sqft > 0) {
     try {
-      const all = await adapter.searchListings({}, 1, 100)
-      const comps = all.properties.filter(c =>
-        c.id !== property.id &&
-        c.propertyType === property.propertyType &&
-        c.sqft != null &&
-        Math.abs(c.sqft - property.sqft!) / property.sqft! <= 0.4
-      )
-      if (comps.length >= 1) {
-        const avgPpsf = comps.reduce((sum, c) => sum + c.price / c.sqft!, 0) / comps.length
-        const estimate = Math.round((avgPpsf * property.sqft) / 5000) * 5000
+      const sqft = property.sqft
+      const sqftMin = sqft * 0.75
+      const sqftMax = sqft * 1.25
+      const city = property.location.city
+      const since12m = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000)
+
+      // First try: sold comparables in same city/type within 12 months
+      let comps = await (db as any).property.findMany({
+        where: {
+          id: { not: property.id },
+          propertyType: property.propertyType,
+          city,
+          status: 'sold',
+          sqft: { gte: sqftMin, lte: sqftMax },
+          updatedAt: { gte: since12m },
+        },
+        select: { price: true, sqft: true },
+        take: 20,
+      })
+
+      // Fallback: active listings same area/type
+      if (comps.length < 3) {
+        const active = await (db as any).property.findMany({
+          where: {
+            id: { not: property.id },
+            propertyType: property.propertyType,
+            city,
+            status: 'active',
+            sqft: { gte: sqftMin, lte: sqftMax },
+          },
+          select: { price: true, sqft: true },
+          take: 20,
+        })
+        comps = [...comps, ...active]
+      }
+
+      if (comps.length >= 2) {
+        const ppsf = comps.map((c: { price: number | bigint | { toNumber: () => number }; sqft: number }) => {
+          const p = typeof c.price === 'object' && 'toNumber' in c.price ? c.price.toNumber() : Number(c.price)
+          return p / c.sqft!
+        })
+        const avgPpsf = ppsf.reduce((a: number, b: number) => a + b, 0) / ppsf.length
+        // Simple year-built adjustment: older = -0.5% per year below 1990
+        const builtAdj = property.yearBuilt && property.yearBuilt < 1990
+          ? 1 - (1990 - property.yearBuilt) * 0.003
+          : 1
+        const estimate = Math.round((avgPpsf * sqft * builtAdj) / 5000) * 5000
         avm = {
           estimate,
-          low: Math.round(estimate * 0.92 / 5000) * 5000,
-          high: Math.round(estimate * 1.08 / 5000) * 5000,
+          low: Math.round(estimate * 0.91 / 5000) * 5000,
+          high: Math.round(estimate * 1.09 / 5000) * 5000,
           comparableCount: comps.length,
         }
       }
     } catch {}
   }
 
-  return <PropertyDetailView property={property} initialSaved={initialSaved} avm={avm} />
+  const BASE = process.env.NEXT_PUBLIC_APP_URL ?? 'https://condohill.com'
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'RealEstateListing',
+    name: property.title,
+    description: property.description.slice(0, 500),
+    url: `${BASE}/property/${property.id}`,
+    image: property.images.map(img => img.url),
+    offers: {
+      '@type': 'Offer',
+      price: property.price,
+      priceCurrency: 'CAD',
+    },
+    address: {
+      '@type': 'PostalAddress',
+      addressLocality: property.location.city,
+      addressRegion: property.location.province,
+      postalCode: property.location.postalCode ?? undefined,
+      addressCountry: 'CA',
+    },
+    numberOfRooms: property.bedrooms,
+    floorSize: property.sqft ? { '@type': 'QuantitativeValue', value: property.sqft, unitCode: 'FTK' } : undefined,
+  }
+
+  return (
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <PropertyDetailView property={property} initialSaved={initialSaved} avm={avm} />
+      <RecentlyViewed />
+    </>
+  )
 }

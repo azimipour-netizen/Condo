@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { useSession } from 'next-auth/react'
 import type { AIMessage } from '@/types/ai'
 import type { SearchResult, SearchFilters } from '@/types/search'
 import MessageBubble from './MessageBubble'
@@ -27,11 +28,13 @@ function saveSession(messages: AIMessage[], searchResult: SearchResult | null, c
 }
 
 export default function ChatInterface({ initialMessage }: Props) {
+  const { data: session } = useSession()
   const [messages, setMessages] = useState<AIMessage[]>([])
   const [input, setInput] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
   const [searchResult, setSearchResult] = useState<SearchResult | null>(null)
   const [currentFilters, setCurrentFilters] = useState<SearchFilters>({})
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const hasSentInitial = useRef(false)
@@ -179,7 +182,26 @@ export default function ChatInterface({ initialMessage }: Props) {
     }
   }, [input])
 
+  async function saveChat() {
+    if (saveState !== 'idle' || messages.length < 2) return
+    setSaveState('saving')
+    try {
+      const res = await fetch('/api/ai/conversations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: messages.map(m => ({ role: m.role, content: m.content })),
+          filtersState: currentFilters,
+        }),
+      })
+      setSaveState(res.ok ? 'saved' : 'idle')
+    } catch {
+      setSaveState('idle')
+    }
+  }
+
   const hasResults = searchResult && searchResult.properties.length > 0
+  const canSave = session?.user && messages.length >= 2 && !isStreaming
 
   return (
     <div className="flex flex-1 min-h-0 overflow-hidden">
@@ -200,6 +222,30 @@ export default function ChatInterface({ initialMessage }: Props) {
 
         {/* Input */}
         <div className="border-t border-[color:var(--border)] px-4 py-3">
+          {canSave && (
+            <div className="flex justify-end mb-2">
+              <button
+                type="button"
+                onClick={saveChat}
+                disabled={saveState !== 'idle'}
+                className={[
+                  'flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border transition-colors',
+                  saveState === 'saved'
+                    ? 'border-[color:var(--accent)] text-[color:var(--accent)] bg-[color:var(--accent-dim)]'
+                    : 'border-[color:var(--border)] text-[color:var(--text-muted)] hover:text-[color:var(--foreground)] hover:border-[color:var(--border-strong)]',
+                ].join(' ')}
+              >
+                {saveState === 'saving' ? (
+                  <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+                    <path d="M1 1h7l2 2v7H1V1zM3 1v3h5V1M3 6h5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+                {saveState === 'saved' ? 'Saved to profile' : 'Save this chat'}
+              </button>
+            </div>
+          )}
           <form onSubmit={handleSubmit} className="relative">
             <textarea
               ref={textareaRef}

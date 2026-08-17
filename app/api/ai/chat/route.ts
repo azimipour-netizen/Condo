@@ -4,6 +4,7 @@ import { SYSTEM_PROMPT } from '@/lib/ai/system-prompt'
 import { AI_TOOLS } from '@/lib/ai/tools'
 import { getMLSAdapter } from '@/lib/mls/adapter'
 import { validateSearchFilters } from '@/lib/search/validators'
+import { ratelimit, getIP, rateLimitResponse } from '@/lib/ratelimit'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -11,6 +12,8 @@ export const runtime = 'nodejs'
 export const maxDuration = 60
 
 export async function POST(req: NextRequest) {
+  const rl = ratelimit(`ai:${getIP(req)}`, 8, 60_000)
+  if (!rl.success) return rateLimitResponse(rl.resetAt)
   try {
     const { messages } = await req.json()
 

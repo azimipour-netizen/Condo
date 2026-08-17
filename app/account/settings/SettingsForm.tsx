@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 interface Props {
   name: string
@@ -8,6 +9,7 @@ interface Props {
 }
 
 export default function SettingsForm({ name: initialName, email }: Props) {
+  const router = useRouter()
   // Profile
   const [name, setName] = useState(initialName ?? '')
   const [profileStatus, setProfileStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
@@ -30,7 +32,10 @@ export default function SettingsForm({ name: initialName, email }: Props) {
         body: JSON.stringify({ name: name.trim() }),
       })
       setProfileStatus(res.ok ? 'saved' : 'error')
-      if (res.ok) setTimeout(() => setProfileStatus('idle'), 2500)
+      if (res.ok) {
+        setTimeout(() => setProfileStatus('idle'), 2500)
+        router.refresh()
+      }
     } catch {
       setProfileStatus('error')
     }

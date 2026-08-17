@@ -4,11 +4,19 @@ import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { useSession, signOut } from 'next-auth/react'
 
+const NAV_LINKS = [
+  { href: '/neighbourhoods', label: 'Neighbourhoods' },
+  { href: '/open-houses', label: 'Open Houses' },
+  { href: '/blog', label: 'Market Updates' },
+  { href: '/about', label: 'About' },
+]
+
 export default function TopNav() {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [mobileOpen, setMobileOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const { data: session, status } = useSession()
-  const role = (session?.user as any)?.role
+  const role = session?.user?.role
   const initials = session?.user?.name
     ? session.user.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
     : session?.user?.email?.[0]?.toUpperCase() ?? '?'
@@ -23,75 +31,187 @@ export default function TopNav() {
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
 
+  // Close mobile menu on route change
+  useEffect(() => { setMobileOpen(false) }, [])
+
   return (
-    <header className="flex items-center justify-between px-5 py-3 border-b border-[color:var(--border)] bg-[color:var(--bg-surface)] shrink-0 z-40">
-      <Link href="/" className="flex items-center gap-2">
-        <span className="w-6 h-6 rounded-md bg-[color:var(--accent)] flex items-center justify-center">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <path d="M7 1L9 5H13L10 8L11 12L7 10L3 12L4 8L1 5H5L7 1Z" fill="white" />
-          </svg>
-        </span>
-        <span className="text-sm font-semibold text-[color:var(--foreground)]">Toronto Realty AI</span>
-      </Link>
+    <>
+      <header className="flex items-center justify-between px-5 py-3 border-b border-[color:var(--border)] bg-[color:var(--bg-surface)] shrink-0 z-40 relative">
+        <Link href="/" className="flex items-center gap-2">
+          <span className="w-6 h-6 rounded-md bg-[color:var(--accent)] flex items-center justify-center">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M7 1L9 5H13L10 8L11 12L7 10L3 12L4 8L1 5H5L7 1Z" fill="white" />
+            </svg>
+          </span>
+          <span className="text-sm font-semibold text-[color:var(--foreground)]">Condohill</span>
+        </Link>
 
-      <div className="flex items-center gap-3">
-        {status === 'authenticated' ? (
-          <div className="relative" ref={menuRef}>
-            <button
-              onClick={() => setMenuOpen(o => !o)}
-              className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-[color:var(--bg-surface-2)] transition-colors"
-            >
-              <span className="w-7 h-7 rounded-full bg-[color:var(--accent)] text-white text-xs font-bold flex items-center justify-center">
-                {initials}
-              </span>
-              <span className="text-sm text-[color:var(--foreground)] hidden sm:block max-w-[120px] truncate">
-                {session.user?.name ?? session.user?.email}
-              </span>
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className={`text-[color:var(--text-muted)] transition-transform ${menuOpen ? 'rotate-180' : ''}`}>
-                <path d="M2 4L6 8L10 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
+        <div className="flex items-center gap-3">
+          {/* Desktop nav links */}
+          {NAV_LINKS.map(l => (
+            <Link key={l.href} href={l.href}
+              className="text-sm text-[color:var(--text-muted)] hover:text-[color:var(--foreground)] transition-colors hidden sm:block">
+              {l.label}
+            </Link>
+          ))}
 
-            {menuOpen && (
-              <div className="absolute right-0 top-full mt-1.5 w-56 bg-[color:var(--bg-surface)] border border-[color:var(--border)] rounded-xl shadow-lg py-1 z-50">
-                <div className="px-3 py-2 border-b border-[color:var(--border)]">
-                  <p className="text-xs font-medium text-[color:var(--foreground)] truncate">{session.user?.name}</p>
-                  <p className="text-xs text-[color:var(--text-muted)] truncate">{session.user?.email}</p>
+          {/* New Search button */}
+          <a
+            href="/"
+            onClick={() => { try { sessionStorage.removeItem('chat_session') } catch {} }}
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium border border-[color:var(--border)] text-[color:var(--foreground)] rounded-lg hover:bg-[color:var(--bg-surface-2)] transition-colors"
+          >
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+              <circle cx="5.5" cy="5.5" r="4" stroke="currentColor" strokeWidth="1.4"/>
+              <path d="M9 9L11.5 11.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+            </svg>
+            New Search
+          </a>
+
+          {/* Desktop user menu */}
+          {status === 'authenticated' ? (
+            <div className="relative hidden sm:block" ref={menuRef}>
+              <button
+                onClick={() => setMenuOpen(o => !o)}
+                className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-[color:var(--bg-surface-2)] transition-colors"
+              >
+                <span className="w-7 h-7 rounded-full bg-[color:var(--accent)] text-white text-xs font-bold flex items-center justify-center">
+                  {initials}
+                </span>
+                <span className="text-sm text-[color:var(--foreground)] max-w-[120px] truncate">
+                  {session.user?.name ?? session.user?.email}
+                </span>
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className={`text-[color:var(--text-muted)] transition-transform ${menuOpen ? 'rotate-180' : ''}`}>
+                  <path d="M2 4L6 8L10 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+
+              {menuOpen && (
+                <div className="absolute right-0 top-full mt-1.5 w-56 bg-[color:var(--bg-surface)] border border-[color:var(--border)] rounded-xl shadow-lg py-1 z-50">
+                  <div className="px-3 py-2 border-b border-[color:var(--border)]">
+                    <p className="text-xs font-medium text-[color:var(--foreground)] truncate">{session.user?.name}</p>
+                    <p className="text-xs text-[color:var(--text-muted)] truncate">{session.user?.email}</p>
+                  </div>
+                  <Link href="/account/favorites" onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-2.5 px-3 py-2 text-sm text-[color:var(--foreground)] hover:bg-[color:var(--bg-surface-2)] transition-colors">
+                    Saved Properties
+                  </Link>
+                  <Link href="/account/saved-searches" onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-2.5 px-3 py-2 text-sm text-[color:var(--foreground)] hover:bg-[color:var(--bg-surface-2)] transition-colors">
+                    Saved Searches
+                  </Link>
+                  <Link href="/account/documents" onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-2.5 px-3 py-2 text-sm text-[color:var(--foreground)] hover:bg-[color:var(--bg-surface-2)] transition-colors">
+                    My Documents
+                  </Link>
+                  <Link href="/account/settings" onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-2.5 px-3 py-2 text-sm text-[color:var(--foreground)] hover:bg-[color:var(--bg-surface-2)] transition-colors">
+                    Settings
+                  </Link>
+                  {(role === 'agent' || role === 'admin') && (
+                    <Link href="/dashboard" onClick={() => setMenuOpen(false)}
+                      className="flex items-center gap-2.5 px-3 py-2 text-sm text-[color:var(--foreground)] hover:bg-[color:var(--bg-surface-2)] transition-colors">
+                      Dashboard
+                    </Link>
+                  )}
+                  <div className="border-t border-[color:var(--border)] mt-1 pt-1">
+                    <button onClick={() => signOut({ callbackUrl: '/' })}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-[color:var(--text-muted)] hover:text-[color:var(--foreground)] hover:bg-[color:var(--bg-surface-2)] transition-colors">
+                      Sign out
+                    </button>
+                  </div>
                 </div>
-                <Link href="/account/favorites" onClick={() => setMenuOpen(false)}
-                  className="flex items-center gap-2.5 px-3 py-2 text-sm text-[color:var(--foreground)] hover:bg-[color:var(--bg-surface-2)] transition-colors">
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 12.5C7 12.5 1 8.5 1 4.5C1 2.567 2.567 1 4.5 1C5.553 1 6.5 1.5 7 2.3C7.5 1.5 8.447 1 9.5 1C11.433 1 13 2.567 13 4.5C13 8.5 7 12.5 7 12.5Z" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              )}
+            </div>
+          ) : status === 'unauthenticated' ? (
+            <Link href="/login"
+              className="px-3.5 py-1.5 text-sm font-medium bg-[color:var(--accent)] text-white rounded-lg hover:opacity-90 transition-colors hidden sm:block">
+              Sign in
+            </Link>
+          ) : null}
+
+          {/* Mobile hamburger */}
+          <button
+            onClick={() => setMobileOpen(o => !o)}
+            className="sm:hidden flex items-center justify-center w-8 h-8 rounded-lg hover:bg-[color:var(--bg-surface-2)] transition-colors"
+            aria-label="Menu"
+          >
+            {mobileOpen ? (
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M3 3L13 13M13 3L3 13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+              </svg>
+            ) : (
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+              </svg>
+            )}
+          </button>
+        </div>
+      </header>
+
+      {/* Mobile drawer */}
+      {mobileOpen && (
+        <div className="sm:hidden fixed inset-0 z-30 flex flex-col" onClick={() => setMobileOpen(false)}>
+          {/* Backdrop */}
+          <div className="flex-1 bg-black/40" />
+        </div>
+      )}
+      {mobileOpen && (
+        <div className="sm:hidden fixed top-[53px] left-0 right-0 z-40 bg-[color:var(--bg-surface)] border-b border-[color:var(--border)] shadow-lg">
+          <nav className="flex flex-col divide-y divide-[color:var(--border)]">
+            <a href="/"
+              onClick={() => { try { sessionStorage.removeItem('chat_session') } catch {} }}
+              className="px-5 py-3.5 text-sm font-medium text-[color:var(--accent)] hover:bg-[color:var(--bg-surface-2)] transition-colors flex items-center gap-2">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.4"/>
+                <path d="M9.5 9.5L12 12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+              </svg>
+              New Search
+            </a>
+            {NAV_LINKS.map(l => (
+              <Link key={l.href} href={l.href} onClick={() => setMobileOpen(false)}
+                className="px-5 py-3.5 text-sm text-[color:var(--foreground)] hover:bg-[color:var(--bg-surface-2)] transition-colors">
+                {l.label}
+              </Link>
+            ))}
+            {status === 'authenticated' ? (
+              <>
+                <div className="px-5 py-3 bg-[color:var(--bg-surface-2)]">
+                  <p className="text-xs font-medium text-[color:var(--foreground)]">{session.user?.name}</p>
+                  <p className="text-xs text-[color:var(--muted)]">{session.user?.email}</p>
+                </div>
+                <Link href="/account/favorites" onClick={() => setMobileOpen(false)}
+                  className="px-5 py-3.5 text-sm text-[color:var(--foreground)] hover:bg-[color:var(--bg-surface-2)] transition-colors">
                   Saved Properties
                 </Link>
-                <Link href="/account/documents" onClick={() => setMenuOpen(false)}
-                  className="flex items-center gap-2.5 px-3 py-2 text-sm text-[color:var(--foreground)] hover:bg-[color:var(--bg-surface-2)] transition-colors">
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 1H9L12 4V13H3V1Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/><path d="M9 1V4H12" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/><path d="M5 7H9M5 9.5H7.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>
-                  My Documents
+                <Link href="/account/saved-searches" onClick={() => setMobileOpen(false)}
+                  className="px-5 py-3.5 text-sm text-[color:var(--foreground)] hover:bg-[color:var(--bg-surface-2)] transition-colors">
+                  Saved Searches
+                </Link>
+                <Link href="/account/settings" onClick={() => setMobileOpen(false)}
+                  className="px-5 py-3.5 text-sm text-[color:var(--foreground)] hover:bg-[color:var(--bg-surface-2)] transition-colors">
+                  Settings
                 </Link>
                 {(role === 'agent' || role === 'admin') && (
-                  <Link href="/dashboard" onClick={() => setMenuOpen(false)}
-                    className="flex items-center gap-2.5 px-3 py-2 text-sm text-[color:var(--foreground)] hover:bg-[color:var(--bg-surface-2)] transition-colors">
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.4"/><rect x="8" y="1" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.4"/><rect x="1" y="8" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.4"/><rect x="8" y="8" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.4"/></svg>
-                    My Real Estate Dashboard
+                  <Link href="/dashboard" onClick={() => setMobileOpen(false)}
+                    className="px-5 py-3.5 text-sm text-[color:var(--foreground)] hover:bg-[color:var(--bg-surface-2)] transition-colors">
+                    Dashboard
                   </Link>
                 )}
-                <div className="border-t border-[color:var(--border)] mt-1 pt-1">
-                  <button onClick={() => signOut({ callbackUrl: '/' })}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-[color:var(--text-muted)] hover:text-[color:var(--foreground)] hover:bg-[color:var(--bg-surface-2)] transition-colors">
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M5 2H2C1.45 2 1 2.45 1 3V11C1 11.55 1.45 12 2 12H5M9 10L13 7L9 4M13 7H5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                    Sign out
-                  </button>
-                </div>
-              </div>
+                <button onClick={() => { setMobileOpen(false); signOut({ callbackUrl: '/' }) }}
+                  className="text-left px-5 py-3.5 text-sm text-red-500 hover:bg-[color:var(--bg-surface-2)] transition-colors">
+                  Sign out
+                </button>
+              </>
+            ) : (
+              <Link href="/login" onClick={() => setMobileOpen(false)}
+                className="px-5 py-3.5 text-sm font-medium text-[color:var(--accent)] hover:bg-[color:var(--bg-surface-2)] transition-colors">
+                Sign in
+              </Link>
             )}
-          </div>
-        ) : status === 'unauthenticated' ? (
-          <Link href="/login"
-            className="px-3.5 py-1.5 text-sm font-medium bg-[color:var(--accent)] text-white rounded-lg hover:bg-[color:var(--accent-hover)] transition-colors">
-            Sign in
-          </Link>
-        ) : null}
-      </div>
-    </header>
+          </nav>
+        </div>
+      )}
+    </>
   )
 }

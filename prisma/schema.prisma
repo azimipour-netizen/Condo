@@ -72,7 +72,10 @@ model User {
   answers         PropertyAnswer[]
   uploadedDocuments Document[] @relation("DocumentUploader")
   receivedDocuments Document[] @relation("DocumentReceiver")
-  savedSearches   SavedSearch[]
+  savedSearches            SavedSearch[]
+  passwordResetTokens      PasswordResetToken[]
+  emailVerificationTokens  EmailVerificationToken[]
+  blogPosts                BlogPost[]
 }
 
 // NextAuth tables
@@ -137,6 +140,7 @@ model Property {
   city            String              @default("Toronto")
   province        String              @default("ON")
   postalCode      String?
+  virtualTourUrl  String?
   // Raw provider data (for fields not yet normalized)
   providerData    Json?
   listedAt        DateTime            @default(now())
@@ -155,6 +159,9 @@ model Property {
   @@index([city])
   @@index([neighbourhood])
   @@index([latitude, longitude])
+  // Composite indexes for AVM comparables + neighbourhood stats queries
+  @@index([status, propertyType, city])
+  @@index([status, city, propertyType, sqft])
 }
 
 model PropertyImage {
@@ -231,10 +238,39 @@ model OpenHouse {
   notes      String?
   createdAt  DateTime @default(now())
 
-  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  property      Property               @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  registrations OpenHouseRegistration[]
 
   @@index([propertyId])
   @@index([startsAt])
+}
+
+model OpenHouseRegistration {
+  id          String   @id @default(uuid())
+  openHouseId String
+  name        String
+  email       String
+  phone       String?
+  createdAt   DateTime @default(now())
+
+  openHouse OpenHouse @relation(fields: [openHouseId], references: [id], onDelete: Cascade)
+
+  @@unique([openHouseId, email])
+  @@index([openHouseId])
+}
+
+model ContactInquiry {
+  id        String   @id @default(uuid())
+  name      String
+  email     String
+  phone     String?
+  subject   String
+  message   String   @db.Text
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([read])
 }
 
 model SyncJob {
@@ -275,11 +311,13 @@ model PropertyAnswer {
 }
 
 model SavedSearch {
-  id        String   @id @default(uuid())
-  userId    String
-  name      String
-  filters   Json
-  createdAt DateTime @default(now())
+  id             String    @id @default(uuid())
+  userId         String
+  name           String
+  filters        Json
+  alertsEnabled  Boolean   @default(true)
+  lastAlertedAt  DateTime?
+  createdAt      DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -288,6 +326,69 @@ model SavedSearch {
 
 // side: 'buyer' = uploaded by buyer about themselves
 //       'agent' = uploaded by agent for/about the buyer
+model BlogPost {
+  id          String   @id @default(uuid())
+  slug        String   @unique
+  title       String
+  summary     String
+  body        String   @db.Text
+  authorId    String
+  published   Boolean  @default(false)
+  publishedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  author User @relation(fields: [authorId], references: [id])
+
+  @@index([published])
+  @@index([publishedAt])
+}
+
+model EmailVerificationToken {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model PriceHistory {
+  id         String   @id @default(uuid())
+  propertyId String
+  price      Decimal  @db.Decimal(12, 2)
+  recordedAt DateTime @default(now())
+
+  @@index([propertyId])
+  @@index([recordedAt])
+}
+
+model PageView {
+  id         String   @id @default(uuid())
+  path       String
+  propertyId String?
+  sessionId  String?
+  createdAt  DateTime @default(now())
+
+  @@index([path])
+  @@index([propertyId])
+  @@index([createdAt])
+}
+
 model Document {
   id           String   @id @default(uuid())
   uploaderId   String

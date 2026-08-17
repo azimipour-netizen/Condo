@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background -->
+  <rect width="512" height="512" rx="96" fill="#0D9488"/>
+  <!-- Star / home mark — safe zone padded for maskable (80%) -->
+  <path d="M256 116L302 212H412L328 274L356 374L256 314L156 374L184 274L100 212H210Z"
+        fill="white" fill-opacity="0.95"/>
+</svg>

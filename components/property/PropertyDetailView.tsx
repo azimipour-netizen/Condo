@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import type { Property } from '@/types/property'
 import ShowingRequestModal from './ShowingRequestModal'
@@ -11,7 +12,11 @@ import PropertyQA from './PropertyQA'
 import MortgageCalculator from './MortgageCalculator'
 import CompareButton from './CompareButton'
 import { recordView } from '@/lib/recently-viewed'
+import { usePageView } from '@/hooks/usePageView'
 import OpenHouseSection from './OpenHouseSection'
+import NeighbourhoodStats from './NeighbourhoodStats'
+import PriceHistory from './PriceHistory'
+import ShareButtons from '@/components/ShareButtons'
 
 const SinglePropertyMap = dynamic(() => import('@/components/map/SinglePropertyMap'), { ssr: false })
 
@@ -28,6 +33,49 @@ interface Props {
   avm?: AVM | null
 }
 
+function getEmbedUrl(url: string): string | null {
+  try {
+    const u = new URL(url)
+    // YouTube
+    if (u.hostname.includes('youtube.com') || u.hostname.includes('youtu.be')) {
+      const vid = u.hostname.includes('youtu.be')
+        ? u.pathname.slice(1)
+        : u.searchParams.get('v') ?? u.pathname.split('/').pop()
+      if (vid) return `https://www.youtube.com/embed/${vid}?autoplay=0&rel=0`
+    }
+    // Matterport
+    if (u.hostname.includes('matterport.com')) {
+      const m = url.match(/m=([^&]+)/)
+      if (m) return `https://my.matterport.com/show/?m=${m[1]}&play=1`
+      return url
+    }
+    // Vimeo
+    if (u.hostname.includes('vimeo.com')) {
+      const vid = u.pathname.split('/').pop()
+      if (vid) return `https://player.vimeo.com/video/${vid}`
+    }
+    return url
+  } catch {
+    return null
+  }
+}
+
+function VirtualTourEmbed({ url, title }: { url: string; title: string }) {
+  const embedUrl = getEmbedUrl(url)
+  if (!embedUrl) return null
+  return (
+    <div className="aspect-video rounded-2xl overflow-hidden border border-[color:var(--border)] bg-[color:var(--bg-surface-2)]">
+      <iframe
+        src={embedUrl}
+        title={`Virtual tour — ${title}`}
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; xr-spatial-tracking"
+        allowFullScreen
+        className="w-full h-full"
+      />
+    </div>
+  )
+}
+
 const TYPE_LABELS: Record<string, string> = {
   detached: 'Detached', 'semi-detached': 'Semi-Detached', townhouse: 'Townhouse',
   condo: 'Condo', multiplex: 'Multiplex', vacant_land: 'Vacant Land', commercial: 'Commercial',
@@ -39,6 +87,7 @@ export default function PropertyDetailView({ property: p, initialSaved, avm }: P
   const [lightbox, setLightbox] = useState(false)
   const [shareStatus, setShareStatus] = useState<'idle' | 'copied'>('idle')
   const router = useRouter()
+  usePageView(p.id)
 
   async function handleShare() {
     const url = typeof window !== 'undefined' ? window.location.href : ''
@@ -80,7 +129,7 @@ export default function PropertyDetailView({ property: p, initialSaved, avm }: P
     .filter(Boolean).join(', ')
 
   return (
-    <div className="min-h-screen bg-[color:var(--background)]">
+    <div className="bg-[color:var(--background)]">
       {/* Nav */}
       <div className="border-b border-[color:var(--border)] bg-[color:var(--bg-surface)]">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-3">
@@ -109,10 +158,13 @@ export default function PropertyDetailView({ property: p, initialSaved, avm }: P
                   className="aspect-[16/10] rounded-2xl overflow-hidden bg-[color:var(--bg-surface-2)] mb-2 relative group cursor-zoom-in"
                   onClick={() => setLightbox(true)}
                 >
-                  <img
+                  <Image
                     src={p.images[activeImg]?.url}
                     alt={p.images[activeImg]?.alt ?? p.title}
-                    className="w-full h-full object-cover"
+                    fill
+                    className="object-cover"
+                    sizes="(max-width: 1024px) 100vw, 70vw"
+                    priority
                   />
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-end justify-end p-3">
                     <span className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 text-white text-xs px-2 py-1 rounded-lg backdrop-blur-sm">
@@ -127,11 +179,11 @@ export default function PropertyDetailView({ property: p, initialSaved, avm }: P
                         key={i}
                         onClick={() => setActiveImg(i)}
                         className={[
-                          'shrink-0 w-20 h-14 rounded-lg overflow-hidden border-2 transition-colors',
+                          'relative shrink-0 w-20 h-14 rounded-lg overflow-hidden border-2 transition-colors',
                           i === activeImg ? 'border-[color:var(--accent)]' : 'border-transparent opacity-60 hover:opacity-100',
                         ].join(' ')}
                       >
-                        <img src={img.url} alt={img.alt ?? ''} className="w-full h-full object-cover" />
+                        <Image src={img.url} alt={img.alt ?? ''} fill className="object-cover" sizes="80px" />
                       </button>
                     ))}
                   </div>
@@ -165,6 +217,14 @@ export default function PropertyDetailView({ property: p, initialSaved, avm }: P
               <h2 className="text-base font-semibold text-[color:var(--foreground)] mb-3">About this property</h2>
               <p className="text-sm text-[color:var(--text-muted)] leading-relaxed">{p.description}</p>
             </section>
+
+            {/* Virtual tour */}
+            {p.virtualTourUrl && (
+              <section className="mb-8">
+                <h2 className="text-base font-semibold text-[color:var(--foreground)] mb-3">Virtual tour</h2>
+                <VirtualTourEmbed url={p.virtualTourUrl} title={p.title} />
+              </section>
+            )}
 
             {/* Features */}
             {p.features.length > 0 && (
@@ -234,6 +294,10 @@ export default function PropertyDetailView({ property: p, initialSaved, avm }: P
 
               <CompareButton propertyId={p.id} />
 
+              <div className="mt-4 pt-4 border-t border-[color:var(--border)]">
+                <ShareButtons title={p.title} />
+              </div>
+
               <button
                 onClick={handleShare}
                 className="w-full mt-1 flex items-center justify-center gap-2 py-2.5 border border-[color:var(--border)] rounded-xl text-sm text-[color:var(--text-muted)] hover:text-[color:var(--foreground)] hover:border-[color:var(--foreground)] transition-colors"
@@ -263,6 +327,12 @@ export default function PropertyDetailView({ property: p, initialSaved, avm }: P
 
             {/* Open Houses */}
             <OpenHouseSection propertyId={p.id} />
+
+            {/* Neighbourhood stats */}
+            <NeighbourhoodStats propertyId={p.id} />
+
+            {/* Price history */}
+            <PriceHistory propertyId={p.id} />
 
             {/* Location */}
             <div className="bg-[color:var(--bg-surface)] border border-[color:var(--border)] rounded-2xl p-5">
@@ -324,6 +394,7 @@ export default function PropertyDetailView({ property: p, initialSaved, avm }: P
 
           {/* Main image */}
           <div className="flex-1 flex items-center justify-center px-4 min-h-0" onClick={e => e.stopPropagation()}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={p.images[activeImg]?.url}
               alt={p.images[activeImg]?.alt ?? p.title}
@@ -348,11 +419,11 @@ export default function PropertyDetailView({ property: p, initialSaved, avm }: P
                     key={i}
                     onClick={() => setActiveImg(i)}
                     className={[
-                      'shrink-0 w-12 h-9 rounded overflow-hidden transition-opacity',
+                      'relative shrink-0 w-12 h-9 rounded overflow-hidden transition-opacity',
                       i === activeImg ? 'ring-2 ring-white opacity-100' : 'opacity-50 hover:opacity-80',
                     ].join(' ')}
                   >
-                    <img src={img.url} alt="" className="w-full h-full object-cover" />
+                    <Image src={img.url} alt="" fill className="object-cover" sizes="48px" />
                   </button>
                 ))}
               </div>

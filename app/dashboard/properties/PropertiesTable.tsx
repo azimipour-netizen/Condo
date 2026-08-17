@@ -13,6 +13,7 @@ interface Property {
   bedrooms: number
   city: string
   listedAt: string
+  virtualTourUrl?: string | null
   _count: { showingRequests: number }
 }
 
@@ -72,6 +73,54 @@ function StatusCell({ property }: { property: Property }) {
   )
 }
 
+function TourCell({ property }: { property: Property }) {
+  const [url, setUrl] = useState(property.virtualTourUrl ?? '')
+  const [editing, setEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  async function save() {
+    setSaving(true)
+    try {
+      await fetch(`/api/admin/properties/${property.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ virtualTourUrl: url.trim() || null }),
+      })
+      setEditing(false)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (!editing) {
+    return (
+      <button
+        onClick={() => setEditing(true)}
+        title={url || 'Set virtual tour URL'}
+        className={`text-xs px-2 py-1 rounded-lg border transition-colors ${url ? 'border-[color:var(--accent)] text-[color:var(--accent)]' : 'border-[color:var(--border)] text-[color:var(--text-muted)] hover:text-[color:var(--foreground)]'}`}
+      >
+        {url ? '360° ✓' : '+ Tour'}
+      </button>
+    )
+  }
+
+  return (
+    <div className="flex items-center gap-1">
+      <input
+        autoFocus
+        type="url"
+        value={url}
+        onChange={e => setUrl(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setEditing(false) }}
+        placeholder="https://youtube.com/watch?v=..."
+        className="text-xs border border-[color:var(--border)] rounded-lg px-2 py-1 bg-[color:var(--background)] text-[color:var(--foreground)] w-44 outline-none focus:ring-1 focus:ring-[color:var(--accent)]"
+      />
+      <button onClick={save} disabled={saving} className="text-xs text-[color:var(--accent)] font-semibold disabled:opacity-50 px-1">✓</button>
+      <button onClick={() => setEditing(false)} className="text-xs text-[color:var(--text-muted)] px-1">✕</button>
+    </div>
+  )
+}
+
 export default function PropertiesTable({ properties: initial }: Props) {
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('all')
@@ -122,6 +171,7 @@ export default function PropertiesTable({ properties: initial }: Props) {
                   <th className="text-left px-4 py-3 text-xs font-semibold text-[color:var(--text-muted)]">Price</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-[color:var(--text-muted)]">Status</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-[color:var(--text-muted)]">Showings</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-[color:var(--text-muted)]">Tour</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-[color:var(--text-muted)]">Listed</th>
                   <th className="px-4 py-3" />
                 </tr>
@@ -145,17 +195,23 @@ export default function PropertiesTable({ properties: initial }: Props) {
                     <td className="px-4 py-3 text-sm text-[color:var(--text-muted)] tabular-nums">
                       {p._count.showingRequests}
                     </td>
+                    <td className="px-4 py-3">
+                      <TourCell property={p} />
+                    </td>
                     <td className="px-4 py-3 text-xs text-[color:var(--text-muted)] whitespace-nowrap">
                       {new Date(p.listedAt).toLocaleDateString('en-CA')}
                     </td>
                     <td className="px-4 py-3">
-                      <Link
-                        href={`/property/${p.id}`}
-                        target="_blank"
-                        className="text-xs text-[color:var(--accent)] hover:underline whitespace-nowrap"
-                      >
-                        View ↗
-                      </Link>
+                      <div className="flex gap-2">
+                        <Link href={`/dashboard/properties/${p.id}/edit`}
+                          className="text-xs text-[color:var(--accent)] hover:underline whitespace-nowrap">
+                          Edit
+                        </Link>
+                        <Link href={`/property/${p.id}`} target="_blank"
+                          className="text-xs text-[color:var(--muted)] hover:underline whitespace-nowrap">
+                          View ↗
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 ))}

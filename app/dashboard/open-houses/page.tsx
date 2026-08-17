@@ -9,7 +9,10 @@ async function getData() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (db as any).openHouse.findMany({
         orderBy: { startsAt: 'asc' },
-        include: { property: { select: { title: true, listingId: true } } },
+        include: {
+          property: { select: { title: true, listingId: true } },
+          _count: { select: { registrations: true } },
+        },
       }),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (db as any).property.findMany({

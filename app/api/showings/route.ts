@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { notify } from '@/lib/notify'
+import { ratelimit, getIP, rateLimitResponse } from '@/lib/ratelimit'
+import { sendEmail, emailShowingRequest } from '@/lib/email'
 
 const ShowingSchema = z.object({
   propertyId: z.string().min(1),
@@ -15,6 +17,8 @@ const ShowingSchema = z.object({
 })
 
 export async function POST(req: NextRequest) {
+  const rl = ratelimit(`showings:${getIP(req)}`, 10, 10 * 60_000)
+  if (!rl.success) return rateLimitResponse(rl.resetAt)
   try {
     const body = await req.json()
     const data = ShowingSchema.parse(body)
@@ -56,31 +60,11 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Send email notification via Resend if configured
-    const resendKey = process.env.RESEND_API_KEY
     const agentEmail = process.env.AGENT_EMAIL
-    if (resendKey && agentEmail && saved) {
-      try {
-        const { Resend } = await import('resend')
-        const resend = new Resend(resendKey)
-        await resend.emails.send({
-          from: 'Toronto Realty <noreply@torontorealty.ca>',
-          to: agentEmail,
-          subject: `New showing request — ${data.name}`,
-          text: [
-            `New showing request received.`,
-            ``,
-            `Buyer: ${data.name} <${data.email}>${data.phone ? ` · ${data.phone}` : ''}`,
-            `Property: ${data.listingId}`,
-            `Preferred date: ${data.preferredDate}${data.preferredTime ? ' at ' + data.preferredTime : ''}`,
-            data.message ? `Message: ${data.message}` : '',
-            ``,
-            `Review at: ${process.env.NEXTAUTH_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/dashboard/showings`,
-          ].filter(Boolean).join('\n'),
-        })
-      } catch (emailErr) {
-        console.error('[SHOWING] Email send failed:', emailErr)
-      }
+    if (agentEmail && saved) {
+      const appUrl = process.env.NEXTAUTH_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+      const tmpl = emailShowingRequest(data.name, data.listingId, data.preferredDate, data.preferredTime, data.message, `${appUrl}/dashboard/showings`)
+      await sendEmail({ to: agentEmail, ...tmpl }).catch(e => console.error('[SHOWING] Email failed:', e))
     }
 
     if (!saved) {

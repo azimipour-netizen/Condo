@@ -1,5 +1,6 @@
 import type { PropertySummary } from '@/types/property'
 import Link from 'next/link'
+import Image from 'next/image'
 import SaveButton from './SaveButton'
 
 interface Props {
@@ -29,8 +30,8 @@ export default function PropertyCard({ property: p, compact, isSelected, isActiv
       <div className="group flex gap-4 bg-[color:var(--bg-surface)] border border-[color:var(--border)] rounded-xl p-3 hover:border-[color:var(--accent)] transition-colors">
         {p.thumbnail && (
           <Link href={`/property/${p.id}`} className="shrink-0">
-            <div className="w-20 h-20 rounded-lg overflow-hidden bg-[color:var(--bg-surface-2)]">
-              <img src={p.thumbnail} alt={p.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+            <div className="relative w-20 h-20 rounded-lg overflow-hidden bg-[color:var(--bg-surface-2)]">
+              <Image src={p.thumbnail} alt={p.title} fill className="object-cover group-hover:scale-105 transition-transform duration-300" sizes="80px" />
             </div>
           </Link>
         )}
@@ -62,10 +63,12 @@ export default function PropertyCard({ property: p, compact, isSelected, isActiv
       {/* Image */}
       <Link href={`/property/${p.id}`} className="block relative aspect-[4/3] bg-[color:var(--bg-surface-2)] overflow-hidden">
         {p.thumbnail ? (
-          <img
+          <Image
             src={p.thumbnail}
             alt={p.title}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            fill
+            className={`object-cover transition-transform duration-500 ${p.status === 'sold' ? 'grayscale' : 'group-hover:scale-105'}`}
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-[color:var(--text-faint)]">
@@ -79,15 +82,31 @@ export default function PropertyCard({ property: p, compact, isSelected, isActiv
             {TYPE_LABELS[p.propertyType] ?? p.propertyType}
           </span>
         </div>
+        {p.status === 'sold' && (
+          <div className="absolute top-3 right-3">
+            <span className="bg-red-600 text-white text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wide">
+              Sold
+            </span>
+          </div>
+        )}
       </Link>
 
       {/* Info */}
       <div className="p-4">
         <div className="flex items-start justify-between gap-2 mb-2">
           <Link href={`/property/${p.id}`}>
-            <p className="text-xl font-bold tabular text-[color:var(--foreground)] hover:text-[color:var(--accent)] transition-colors">
-              ${p.price.toLocaleString()}
-            </p>
+            {p.status === 'sold' ? (
+              <div>
+                <p className="text-xs text-[color:var(--text-muted)] font-medium mb-0.5">Sold for</p>
+                <p className="text-xl font-bold tabular text-[color:var(--text-muted)]">
+                  ${p.price.toLocaleString()}
+                </p>
+              </div>
+            ) : (
+              <p className="text-xl font-bold tabular text-[color:var(--foreground)] hover:text-[color:var(--accent)] transition-colors">
+                ${p.price.toLocaleString()}
+              </p>
+            )}
           </Link>
           <div className="flex items-center gap-1.5">
             <SaveButton propertyId={p.id} />

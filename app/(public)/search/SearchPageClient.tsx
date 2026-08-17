@@ -38,6 +38,7 @@ export default function SearchPageClient({ initialResult, initialFilters, initia
   const [query, setQuery] = useState(initialQuery)
   const [loading, setLoading] = useState(false)
   const [activeId, setActiveId] = useState<string | null>(null)
+  const [showMap, setShowMap] = useState(false)
   const [priceMin, setPriceMin] = useState(initialFilters.priceMin?.toString() ?? '')
   const [priceMax, setPriceMax] = useState(initialFilters.priceMax?.toString() ?? '')
   const [bedsMin, setBedsMin] = useState(initialFilters.bedroomsMin?.toString() ?? '')
@@ -97,7 +98,7 @@ export default function SearchPageClient({ initialResult, initialFilters, initia
   }, [])
 
   return (
-    <div className="flex flex-col h-screen bg-[color:var(--background)]">
+    <div className="flex flex-col flex-1 min-h-0 bg-[color:var(--background)]">
       {/* Top bar */}
       <div className="flex items-center gap-3 px-4 py-3 bg-[color:var(--bg-surface)] border-b border-[color:var(--border)] flex-wrap">
         <Link href="/" className="flex items-center gap-1.5 text-sm text-[color:var(--text-muted)] hover:text-[color:var(--foreground)] transition-colors shrink-0">
@@ -161,24 +162,36 @@ export default function SearchPageClient({ initialResult, initialFilters, initia
           >
             {loading ? 'Searching…' : 'Search'}
           </button>
+
+          {/* Mobile map/list toggle */}
+          <button
+            onClick={() => setShowMap(m => !m)}
+            className="lg:hidden flex items-center gap-1.5 border border-[color:var(--border)] text-sm px-3 py-1.5 rounded-lg text-[color:var(--foreground)] hover:bg-[color:var(--bg-surface-2)] transition-colors"
+          >
+            {showMap ? (
+              <><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2"/><rect x="8" y="1" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2"/><rect x="1" y="8" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2"/><rect x="8" y="8" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2"/></svg> List</>
+            ) : (
+              <><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 4.5C2 3.4 2.9 2.5 4 2.5L5.5 2.5L5.5 11.5L4 11.5C2.9 11.5 2 10.6 2 9.5L2 4.5Z" stroke="currentColor" strokeWidth="1.2"/><path d="M7.5 2.5L10 2.5C11.1 2.5 12 3.4 12 4.5L12 9.5C12 10.6 11.1 11.5 10 11.5L7.5 11.5L7.5 2.5Z" stroke="currentColor" strokeWidth="1.2"/></svg> Map</>
+            )}
+          </button>
         </div>
       </div>
 
       {/* Split: map + results */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Map */}
-        <div className="hidden lg:block flex-1 relative">
+        {/* Map — desktop always visible, mobile toggled */}
+        <div className={`${showMap ? 'flex' : 'hidden'} lg:flex flex-1 relative`}>
           <PropertyMap
             properties={result.properties}
             activeId={activeId}
             onMarkerClick={handleMarkerClick}
             onBoundsChange={handleBoundsChange}
-            className="absolute inset-0"
+            className="absolute inset-0 w-full h-full"
           />
         </div>
 
-        {/* Results panel */}
-        <div className="w-full lg:w-[480px] xl:w-[540px] shrink-0 overflow-hidden flex flex-col border-l border-[color:var(--border)]">
+        {/* Results panel — desktop fixed width, mobile full width unless map shown */}
+        <div className={`${showMap ? 'hidden lg:flex' : 'flex'} w-full lg:w-[480px] xl:w-[540px] shrink-0 overflow-hidden flex-col border-l border-[color:var(--border)]`}>
           <PropertyResultsPanel
             result={result}
             filters={filters}

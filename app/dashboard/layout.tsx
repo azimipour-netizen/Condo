@@ -6,7 +6,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const session = await auth()
   if (!session?.user) redirect('/login?callbackUrl=/dashboard')
 
-  const role = (session.user as { role?: string }).role
+  const role = session.user.role
   if (role !== 'agent' && role !== 'admin') {
     redirect('/')
   }
@@ -22,12 +22,17 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
         <nav className="flex-1 px-3 py-4 flex flex-col gap-1">
           <NavLink href="/dashboard" label="Overview" icon="⊞" />
+          <NavLink href="/dashboard/leads" label="Leads" icon="◈" />
           <NavLink href="/dashboard/showings" label="Showings" icon="◷" />
           <NavLink href="/dashboard/questions" label="Questions" icon="?" />
           <NavLink href="/dashboard/properties" label="Properties" icon="⊠" />
           <NavLink href="/dashboard/open-houses" label="Open Houses" icon="⌂" />
           <NavLink href="/dashboard/documents" label="Documents" icon="⊟" />
           <NavLink href="/dashboard/users" label="Users" icon="⊙" />
+          <NavLink href="/dashboard/inquiries" label="Inquiries" icon="✉" />
+          <NavLink href="/dashboard/analytics" label="Analytics" icon="↗" />
+          <NavLink href="/dashboard/blog" label="Blog / Updates" icon="✎" />
+          <NavLink href="/dashboard/broadcast" label="Broadcast" icon="✉" />
           <div className="mt-2 pt-2 border-t border-[color:var(--border)]">
             <NavLink href="/account/favorites" label="My Favorite Listings" icon="♡" />
           </div>

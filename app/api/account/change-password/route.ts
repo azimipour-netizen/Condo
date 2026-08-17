@@ -1,15 +1,19 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { db } from '@/lib/db'
 import bcrypt from 'bcryptjs'
 import { z } from 'zod'
+import { ratelimit, getIP, rateLimitResponse } from '@/lib/ratelimit'
 
 const Schema = z.object({
   current: z.string().min(1),
   next: z.string().min(8).max(100),
 })
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  const rl = ratelimit(`changepw:${getIP(req)}`, 5, 600_000)
+  if (!rl.success) return rateLimitResponse(rl.resetAt)
+
   const session = await auth()
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 

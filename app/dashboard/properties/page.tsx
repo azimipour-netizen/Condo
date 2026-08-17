@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import Link from 'next/link'
 import PropertiesTable from './PropertiesTable'
 
 export const metadata = { title: 'Properties' }
@@ -18,6 +19,7 @@ async function getProperties() {
         bedrooms: true,
         city: true,
         listedAt: true,
+        virtualTourUrl: true,
         _count: { select: { showingRequests: true } },
       },
       take: 200,
@@ -34,7 +36,13 @@ export default async function PropertiesPage() {
 
   return (
     <div className="p-8">
-      <h1 className="text-2xl font-bold text-[color:var(--foreground)] mb-8">Properties</h1>
+      <div className="flex items-center justify-between mb-8">
+        <h1 className="text-2xl font-bold text-[color:var(--foreground)]">Properties</h1>
+        <Link href="/dashboard/properties/new"
+          className="px-4 py-2 bg-[color:var(--accent)] text-white text-sm font-semibold rounded-xl hover:opacity-90 transition">
+          + New Listing
+        </Link>
+      </div>
       <PropertiesTable properties={properties} />
     </div>
   )

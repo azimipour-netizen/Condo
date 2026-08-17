@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { getRecent, type RecentEntry } from '@/lib/recently-viewed'
 
 const TYPE_LABELS: Record<string, string> = {
@@ -30,9 +31,9 @@ export default function RecentlyViewed() {
             href={`/property/${e.id}`}
             className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-[color:var(--bg-surface-2)] transition-colors group"
           >
-            <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0 bg-[color:var(--bg-surface-2)]">
+            <div className="relative w-12 h-12 rounded-lg overflow-hidden shrink-0 bg-[color:var(--bg-surface-2)]">
               {e.thumbnail ? (
-                <img src={e.thumbnail} alt={e.title} className="w-full h-full object-cover" />
+                <Image src={e.thumbnail} alt={e.title} fill className="object-cover" sizes="48px" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
                   <svg width="18" height="18" viewBox="0 0 18 18" fill="none">

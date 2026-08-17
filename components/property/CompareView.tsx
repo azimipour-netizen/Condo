@@ -2,6 +2,7 @@
 
 import { Fragment, useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import type { Property } from '@/types/property'
 
@@ -104,9 +105,9 @@ export default function CompareView({ properties: initial }: Props) {
                 <th key={p.id} className="px-3 pb-5 align-top text-left font-normal">
                   <div className="bg-[color:var(--bg-surface)] border border-[color:var(--border)] rounded-2xl overflow-hidden">
                     {/* Image */}
-                    <div className="aspect-[4/3] bg-[color:var(--bg-surface-2)] overflow-hidden">
+                    <div className="relative aspect-[4/3] bg-[color:var(--bg-surface-2)] overflow-hidden">
                       {p.images[0] ? (
-                        <img src={p.images[0].url} alt={p.title} className="w-full h-full object-cover" />
+                        <Image src={p.images[0].url} alt={p.title} fill className="object-cover" sizes="300px" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
                           <svg width="32" height="32" viewBox="0 0 32 32" fill="none" className="text-[color:var(--text-faint)]">

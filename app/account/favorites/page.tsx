@@ -43,11 +43,56 @@ export default async function FavoritesPage() {
     console.error('[/account/favorites] DB query failed:', err)
   }
 
-  const properties: PropertySummary[] = (
-    await Promise.all(savedIds.map(id => adapter.getListing(id).catch(() => null)))
+  const adapterResults = await Promise.all(
+    savedIds.map(id => adapter.getListing(id).catch(() => null))
   )
-    .filter((p): p is Property => p !== null)
-    .map(toSummary)
+
+  // For nulls (sold/delisted from feed), fall back to DB so they stay visible with SOLD badge
+  const nullIds = savedIds.filter((_, i) => adapterResults[i] === null)
+  let dbFallbacks: PropertySummary[] = []
+  if (nullIds.length > 0) {
+    try {
+      const rows = await (db as any).property.findMany({
+        where: { id: { in: nullIds } },
+        select: {
+          id: true, status: true, price: true, propertyType: true, transactionType: true,
+          bedrooms: true, bathroomsTotal: true, parkingSpaces: true, sqft: true, title: true,
+          neighbourhood: true, city: true, province: true, postalCode: true,
+          address: true, displayMode: true, latitude: true, longitude: true,
+          images: { orderBy: { order: 'asc' }, take: 1, select: { url: true } },
+        },
+      })
+      dbFallbacks = rows.map((r: any) => ({
+        id: r.id,
+        status: r.status,
+        price: Number(r.price),
+        propertyType: r.propertyType,
+        bedrooms: r.bedrooms,
+        bathroomsTotal: Number(r.bathroomsTotal),
+        parkingSpaces: r.parkingSpaces,
+        sqft: r.sqft,
+        title: r.title,
+        thumbnail: r.images[0]?.url ?? null,
+        location: {
+          latitude: r.latitude ? Number(r.latitude) : null,
+          longitude: r.longitude ? Number(r.longitude) : null,
+          displayMode: r.displayMode,
+          address: r.address,
+          neighbourhood: r.neighbourhood,
+          city: r.city,
+          province: r.province,
+          postalCode: r.postalCode,
+        },
+      }))
+    } catch {}
+  }
+
+  const properties: PropertySummary[] = [
+    // Active/adapter results first, sold/fallback at the bottom
+    ...adapterResults.filter((p): p is Property => p !== null && p.status !== 'sold').map(toSummary),
+    ...adapterResults.filter((p): p is Property => p !== null && p.status === 'sold').map(toSummary),
+    ...dbFallbacks,
+  ]
 
   return (
     <div className="px-6 py-8">

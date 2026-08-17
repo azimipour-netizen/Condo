@@ -1,7 +1,9 @@
-import { NextResponse } from 'next/server'
+﻿import { NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { put } from '@vercel/blob'
 import { auth } from '@/auth'
 import { db } from '@/lib/db'
+import { ratelimit, getIP, rateLimitResponse } from '@/lib/ratelimit'
 
 const MAX_SIZE = 10 * 1024 * 1024 // 10 MB
 
@@ -12,7 +14,10 @@ const ALLOWED_TYPES = [
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ]
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  const rl = ratelimit(`docupload:${getIP(req)}`, 10, 600_000)
+  if (!rl.success) return rateLimitResponse(rl.resetAt)
+
   const session = await auth()
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -35,7 +40,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'File exceeds 10 MB limit' }, { status: 400 })
   }
 
-  const role = (session.user as any).role
+  const role = session.user.role
   if (side === 'agent' && role !== 'agent' && role !== 'admin') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }

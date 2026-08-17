@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+﻿import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { db } from '@/lib/db'
 
@@ -13,7 +13,7 @@ export async function GET(
   const doc = await (db as any).document.findUnique({ where: { id } })
   if (!doc) return new NextResponse('Not found', { status: 404 })
 
-  const role = (session.user as any).role
+  const role = session.user.role
   const userId = session.user.id
   const isAgent = role === 'agent' || role === 'admin'
 

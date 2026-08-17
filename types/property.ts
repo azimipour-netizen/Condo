@@ -33,6 +33,7 @@ export interface Property {
   features: string[]
   location: PropertyLocation
   images: PropertyImage[]
+  virtualTourUrl?: string | null
   listedAt: string
   updatedAt: string
 }

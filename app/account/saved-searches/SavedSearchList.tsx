@@ -7,6 +7,7 @@ interface SavedSearch {
   id: string
   name: string
   filters: Record<string, unknown>
+  alertsEnabled: boolean
   createdAt: string
 }
 
@@ -36,6 +37,7 @@ function formatDate(d: string) {
 export default function SavedSearchList({ initial }: Props) {
   const [searches, setSearches] = useState(initial)
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [toggling, setToggling] = useState<string | null>(null)
 
   async function deleteSearch(id: string) {
     setDeleting(id)
@@ -44,6 +46,23 @@ export default function SavedSearchList({ initial }: Props) {
       if (res.ok) setSearches(prev => prev.filter(s => s.id !== id))
     } finally {
       setDeleting(null)
+    }
+  }
+
+  async function toggleAlerts(id: string, current: boolean) {
+    if (toggling === id) return
+    setToggling(id)
+    try {
+      const res = await fetch(`/api/account/saved-searches/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ alertsEnabled: !current }),
+      })
+      if (res.ok) {
+        setSearches(prev => prev.map(s => s.id === id ? { ...s, alertsEnabled: !current } : s))
+      }
+    } finally {
+      setToggling(null)
     }
   }
 
@@ -98,6 +117,23 @@ export default function SavedSearchList({ initial }: Props) {
             >
               Search again
             </Link>
+            <button
+              onClick={() => toggleAlerts(s.id, s.alertsEnabled)}
+              disabled={toggling === s.id}
+              title={s.alertsEnabled ? 'Alerts on — click to disable' : 'Alerts off — click to enable'}
+              className={[
+                'p-1.5 rounded-lg transition-colors disabled:opacity-40',
+                s.alertsEnabled
+                  ? 'text-[color:var(--accent)] hover:bg-[color:var(--accent-dim)]'
+                  : 'text-[color:var(--text-faint)] hover:text-[color:var(--text-muted)]',
+              ].join(' ')}
+              aria-label={s.alertsEnabled ? 'Disable alerts' : 'Enable alerts'}
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M7 1.5C7 1.5 3.5 3 3.5 7V9.5L2 11H12L10.5 9.5V7C10.5 3 7 1.5 7 1.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" fill={s.alertsEnabled ? 'currentColor' : 'none'} fillOpacity={s.alertsEnabled ? 0.15 : 0} />
+                <path d="M5.5 11C5.5 11.828 6.172 12.5 7 12.5C7.828 12.5 8.5 11.828 8.5 11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+              </svg>
+            </button>
             <button
               onClick={() => deleteSearch(s.id)}
               disabled={deleting === s.id}

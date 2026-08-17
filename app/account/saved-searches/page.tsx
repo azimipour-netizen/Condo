@@ -10,7 +10,7 @@ async function getSavedSearches(userId: string) {
     const searches = await (db as any).savedSearch.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
-      select: { id: true, name: true, filters: true, createdAt: true },
+      select: { id: true, name: true, filters: true, alertsEnabled: true, createdAt: true },
     })
     return searches.map((s: any) => ({ ...s, createdAt: s.createdAt.toISOString() }))
   } catch {

@@ -36,6 +36,16 @@ const NAV = [
     ),
   },
   {
+    href: '/account/saved-chats',
+    label: 'Saved Chats',
+    icon: (
+      <svg width="15" height="15" viewBox="0 0 14 14" fill="none">
+        <path d="M1 2h12v8H8L5 13v-3H1V2z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+        <path d="M4 5h6M4 7h4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
     href: '/account/settings',
     label: 'Settings',
     icon: (

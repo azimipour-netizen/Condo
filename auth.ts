@@ -45,7 +45,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (user) {
         token.id = user.id
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        token.role = (user as any).role
+        token.role = (user as { role?: 'consumer' | 'agent' | 'admin' }).role
       }
       // Re-fetch role from DB so promotions take effect without re-login
       if (token.id && !user) {
@@ -66,10 +66,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     session({ session, token }) {
       if (token) {
         session.user.id = token.id as string
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ;(session.user as any).role = token.role
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ;(session.user as any).documentsUnlocked = token.documentsUnlocked ?? false
+        session.user.role = (token.role as 'consumer' | 'agent' | 'admin' | undefined) ?? 'consumer'
+        session.user.documentsUnlocked = Boolean(token.documentsUnlocked)
       }
       return session
     },

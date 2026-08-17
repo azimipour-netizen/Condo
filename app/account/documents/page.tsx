@@ -71,8 +71,7 @@ export default function BuyerDocumentsPage() {
       </div>
 
       <div className="max-w-4xl space-y-6">
-        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-        {!(session as any)?.user?.documentsUnlocked && (
+        {!session?.user?.documentsUnlocked && (
           <div className="bg-[color:var(--bg-surface)] border border-[color:var(--border)] rounded-2xl px-6 py-8 flex flex-col items-center text-center gap-3">
             <div className="w-12 h-12 rounded-full bg-[color:var(--bg-surface-2)] flex items-center justify-center">
               <svg width="22" height="22" viewBox="0 0 22 22" fill="none" className="text-[color:var(--text-muted)]">
@@ -90,8 +89,7 @@ export default function BuyerDocumentsPage() {
           </div>
         )}
 
-        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-        {(session as any)?.user?.documentsUnlocked && (
+        {session?.user?.documentsUnlocked && (
           <DocumentVault
             side="buyer"
             categories={BUYER_CATEGORIES}

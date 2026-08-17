@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getMLSAdapter } from '@/lib/mls/adapter'
 import { validateSearchFilters } from '@/lib/search/validators'
+import { ratelimit, getIP, rateLimitResponse } from '@/lib/ratelimit'
 import { z } from 'zod'
 
 const QuerySchema = z.object({
@@ -19,6 +20,9 @@ const QuerySchema = z.object({
 })
 
 export async function GET(req: NextRequest) {
+  const rl = ratelimit(`properties:${getIP(req)}`, 60, 60_000)
+  if (!rl.success) return rateLimitResponse(rl.resetAt)
+
   try {
     const params = Object.fromEntries(req.nextUrl.searchParams.entries())
     const q = QuerySchema.parse(params)

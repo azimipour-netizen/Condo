@@ -9,6 +9,7 @@ interface OpenHouse {
   endsAt: string
   notes: string | null
   property: { title: string; listingId: string } | null
+  _count?: { registrations: number }
 }
 
 interface Property {
@@ -164,6 +165,11 @@ export default function OpenHouseManager({ openHouses: initial, properties }: Pr
                   </p>
                   <p className="text-xs text-[color:var(--text-muted)] truncate">{oh.property?.title}</p>
                   {oh.notes && <p className="text-xs text-[color:var(--text-faint)] mt-0.5">{oh.notes}</p>}
+                  {oh._count && oh._count.registrations > 0 && (
+                    <p className="text-xs text-[color:var(--accent)] mt-0.5 font-medium">
+                      {oh._count.registrations} RSVP{oh._count.registrations !== 1 ? 's' : ''}
+                    </p>
+                  )}
                 </div>
                 <button
                   onClick={() => remove(oh.id)}
@@ -194,6 +200,11 @@ export default function OpenHouseManager({ openHouses: initial, properties }: Pr
                   {fmt(oh.endsAt, { hour: 'numeric', minute: '2-digit', hour12: true })}
                 </p>
                 <p className="text-xs text-[color:var(--text-muted)] truncate">{oh.property?.title}</p>
+                {oh._count && oh._count.registrations > 0 && (
+                  <p className="text-xs text-[color:var(--text-muted)] mt-0.5">
+                    {oh._count.registrations} attended
+                  </p>
+                )}
               </div>
             ))}
           </div>
