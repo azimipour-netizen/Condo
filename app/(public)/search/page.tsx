@@ -27,7 +27,12 @@ export default async function SearchPage({ searchParams }: Props) {
   if (sp.type) filters.propertyTypes = [sp.type as import('@/types/property').PropertyType]
 
   const adapter = getMLSAdapter()
-  const result = await adapter.searchListings(filters, 1, 50)
+  let result: Awaited<ReturnType<typeof adapter.searchListings>>
+  try {
+    result = await adapter.searchListings(filters, 1, 50)
+  } catch {
+    result = { properties: [], total: 0, page: 1, totalPages: 0, appliedFilters: filters }
+  }
 
   return <SearchPageClient initialResult={result} initialFilters={filters} initialQuery={sp.q ?? ''} />
 }
