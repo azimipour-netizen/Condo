@@ -33,6 +33,86 @@ interface Props {
   avm?: AVM | null
 }
 
+interface HistoryRow {
+  listingKey: string
+  listPrice: number
+  status: string
+  dateStart: string | null
+  dateEnd: string | null
+}
+
+function ListingHistory({ propertyId, currentPrice, currentStatus, listedAt, listingKey }: {
+  propertyId: string
+  currentPrice: number
+  currentStatus: string
+  listedAt: string
+  listingKey: string
+}) {
+  const [rows, setRows] = useState<HistoryRow[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch(`/api/properties/${propertyId}/listing-history`)
+      .then(r => r.ok ? r.json() : [])
+      .then((data: HistoryRow[]) => setRows(data))
+      .catch(() => setRows([]))
+      .finally(() => setLoading(false))
+  }, [propertyId])
+
+  const fmtDate = (d: string | null) =>
+    d ? new Date(d).toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' }) : '—'
+
+  const displayRows: HistoryRow[] = rows.length > 0 ? rows : [{
+    listingKey,
+    listPrice: currentPrice,
+    status: currentStatus === 'active' ? 'For Sale' : currentStatus.charAt(0).toUpperCase() + currentStatus.slice(1),
+    dateStart: listedAt,
+    dateEnd: null,
+  }]
+
+  const statusColor = (s: string) => {
+    const ls = s.toLowerCase()
+    if (ls.includes('sale') || ls === 'active') return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+    if (ls.includes('sold') || ls === 'closed') return 'bg-red-500/10 text-red-600 dark:text-red-400'
+    if (ls.includes('terminated') || ls.includes('expired')) return 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+    return 'bg-[color:var(--bg-surface-2)] text-[color:var(--text-muted)]'
+  }
+
+  return (
+    <section className="mb-8">
+      <h2 className="text-base font-semibold text-[color:var(--foreground)] mb-4">Listing history</h2>
+      {loading ? (
+        <div className="h-20 bg-[color:var(--bg-surface)] border border-[color:var(--border)] rounded-xl animate-pulse" />
+      ) : (
+        <div className="border border-[color:var(--border)] rounded-xl overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-[color:var(--bg-surface-2)] border-b border-[color:var(--border)]">
+                {['Date Listed', 'Date End', 'Price', 'Event', 'MLS #'].map(h => (
+                  <th key={h} className="text-left px-4 py-2.5 text-[10px] font-semibold uppercase tracking-widest text-[color:var(--text-faint)]">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {displayRows.map((r, i) => (
+                <tr key={r.listingKey + i} className={`border-b border-[color:var(--border)] last:border-0 ${i % 2 === 1 ? 'bg-[color:var(--bg-surface-2)]/50' : 'bg-[color:var(--bg-surface)]'}`}>
+                  <td className="px-4 py-3 text-[color:var(--text-muted)] tabular">{fmtDate(r.dateStart)}</td>
+                  <td className="px-4 py-3 text-[color:var(--text-muted)] tabular">{fmtDate(r.dateEnd)}</td>
+                  <td className="px-4 py-3 font-semibold text-[color:var(--foreground)] tabular">${r.listPrice.toLocaleString()}</td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${statusColor(r.status)}`}>{r.status}</span>
+                  </td>
+                  <td className="px-4 py-3 text-[color:var(--text-faint)] text-xs font-mono">{r.listingKey}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  )
+}
+
 function getEmbedUrl(url: string): string | null {
   try {
     const u = new URL(url)
@@ -155,7 +235,7 @@ export default function PropertyDetailView({ property: p, initialSaved, avm }: P
             {p.images.length > 0 && (
               <div className="mb-6">
                 <div
-                  className="aspect-[16/10] rounded-2xl overflow-hidden bg-[color:var(--bg-surface-2)] mb-2 relative group cursor-zoom-in"
+                  className="aspect-[16/9] max-h-[55vh] rounded-2xl overflow-hidden bg-[color:var(--bg-surface-2)] mb-2 relative group cursor-zoom-in"
                   onClick={() => setLightbox(true)}
                 >
                   <Image
@@ -174,7 +254,7 @@ export default function PropertyDetailView({ property: p, initialSaved, avm }: P
                 </div>
                 {p.images.length > 1 && (
                   <div className="flex gap-2 overflow-x-auto pb-1">
-                    {p.images.map((img, i) => (
+                    {p.images.slice(0, 20).map((img, i) => (
                       <button
                         key={i}
                         onClick={() => setActiveImg(i)}
@@ -197,26 +277,38 @@ export default function PropertyDetailView({ property: p, initialSaved, avm }: P
             </h1>
             <p className="text-[color:var(--text-muted)] text-sm mb-6">{displayLocation}</p>
 
-            {/* Stats row */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
+            {/* Quick stats row */}
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 mb-6 text-sm">
               {[
-                { label: 'Bedrooms', value: p.bedrooms },
-                { label: 'Bathrooms', value: p.bathroomsTotal },
-                { label: 'Parking', value: p.parkingSpaces || '—' },
-                { label: 'Interior', value: p.sqft ? `${p.sqft.toLocaleString()} sqft` : '—' },
+                { icon: '🛏', label: `${p.bedrooms} bed${p.bedrooms !== 1 ? 's' : ''}` },
+                { icon: '🚿', label: `${p.bathroomsTotal} bath${p.bathroomsTotal !== 1 ? 's' : ''}` },
+                ...(p.parkingSpaces > 0 ? [{ icon: '🚗', label: `${p.parkingSpaces} parking` }] : []),
+                ...(p.sqft ? [{ icon: '📐', label: `${p.sqft.toLocaleString()} sqft` }] : []),
+                ...(p.lotSize ? [{ icon: '🏡', label: p.lotSize }] : []),
               ].map(s => (
-                <div key={s.label} className="bg-[color:var(--bg-surface)] border border-[color:var(--border)] rounded-xl p-4 text-center">
-                  <p className="text-2xl font-bold tabular text-[color:var(--foreground)]">{s.value}</p>
-                  <p className="text-xs text-[color:var(--text-muted)] mt-1">{s.label}</p>
-                </div>
+                <span key={s.label} className="flex items-center gap-1.5 text-[color:var(--text-muted)]">
+                  <span className="text-base">{s.icon}</span>
+                  <span className="font-medium text-[color:var(--foreground)]">{s.label}</span>
+                </span>
               ))}
+              <span className="text-[color:var(--text-faint)]">·</span>
+              <span className="text-[color:var(--text-muted)]">
+                Listed {new Date(p.listedAt).toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' })}
+              </span>
+              {p.daysOnMarket != null && (
+                <span className="text-xs bg-[color:var(--bg-surface)] border border-[color:var(--border)] px-2 py-0.5 rounded-full text-[color:var(--text-muted)]">
+                  {p.daysOnMarket}d on market
+                </span>
+              )}
             </div>
 
             {/* Description */}
-            <section className="mb-8">
-              <h2 className="text-base font-semibold text-[color:var(--foreground)] mb-3">About this property</h2>
-              <p className="text-sm text-[color:var(--text-muted)] leading-relaxed">{p.description}</p>
-            </section>
+            {p.description && (
+              <section className="mb-8">
+                <h2 className="text-base font-semibold text-[color:var(--foreground)] mb-3">About this property</h2>
+                <p className="text-sm text-[color:var(--text-muted)] leading-relaxed">{p.description}</p>
+              </section>
+            )}
 
             {/* Virtual tour */}
             {p.virtualTourUrl && (
@@ -226,39 +318,71 @@ export default function PropertyDetailView({ property: p, initialSaved, avm }: P
               </section>
             )}
 
-            {/* Features */}
-            {p.features.length > 0 && (
-              <section className="mb-8">
-                <h2 className="text-base font-semibold text-[color:var(--foreground)] mb-3">Features & amenities</h2>
-                <div className="flex flex-wrap gap-2">
-                  {p.features.map(f => (
-                    <span key={f} className="px-3 py-1.5 text-xs bg-[color:var(--bg-surface-2)] border border-[color:var(--border)] rounded-full text-[color:var(--foreground)]">
-                      {f}
-                    </span>
-                  ))}
-                </div>
-              </section>
-            )}
+            {/* Comprehensive property information — TRREB style */}
+            <section className="mb-8">
+              <h2 className="text-base font-semibold text-[color:var(--foreground)] mb-4">Property information</h2>
 
-            {/* Listing details */}
-            <section>
-              <h2 className="text-base font-semibold text-[color:var(--foreground)] mb-3">Listing details</h2>
-              <div className="grid sm:grid-cols-2 gap-3">
+              {/* Key specs grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-px bg-[color:var(--border)] border border-[color:var(--border)] rounded-xl overflow-hidden mb-6">
+                {[
+                  { label: 'Bedrooms', value: p.bedrooms || '—' },
+                  { label: 'Bathrooms', value: p.bathroomsTotal || '—' },
+                  { label: 'Parking', value: p.parkingSpaces || '—' },
+                  { label: 'Interior', value: p.sqft ? `${p.sqft.toLocaleString()} sqft` : '—' },
+                  { label: 'Lot size', value: p.lotSize ?? '—' },
+                  { label: 'Year built', value: p.yearBuilt ?? '—' },
+                  ...(p.rooms ? [{ label: 'Total rooms', value: p.rooms }] : []),
+                  ...(p.kitchens ? [{ label: 'Kitchens', value: p.kitchens }] : []),
+                  ...(p.basement ? [{ label: 'Basement', value: p.basement }] : []),
+                ].map(s => (
+                  <div key={s.label} className="bg-[color:var(--bg-surface)] px-4 py-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-[color:var(--text-faint)] mb-1">{s.label}</p>
+                    <p className="text-sm font-semibold text-[color:var(--foreground)] tabular">{s.value}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Systems & features */}
+              {p.features.length > 0 && (
+                <div className="mb-6">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-[color:var(--text-faint)] mb-2">Systems & features</p>
+                  <div className="flex flex-wrap gap-2">
+                    {p.features.map(f => (
+                      <span key={f} className="px-3 py-1.5 text-xs bg-[color:var(--bg-surface)] border border-[color:var(--border)] rounded-full text-[color:var(--foreground)]">
+                        {f}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Two-column details table */}
+              <div className="grid sm:grid-cols-2 gap-x-8">
                 {[
                   { label: 'Property type', value: TYPE_LABELS[p.propertyType] },
+                  { label: 'Transaction', value: p.transactionType === 'lease' ? 'Lease' : 'For Sale' },
                   { label: 'MLS®', value: p.listingId },
-                  ...(p.yearBuilt ? [{ label: 'Year built', value: p.yearBuilt }] : []),
-                  ...(p.lotSize ? [{ label: 'Lot size', value: p.lotSize }] : []),
+                  { label: 'Status', value: p.status.charAt(0).toUpperCase() + p.status.slice(1) },
+                  ...(p.crossStreet ? [{ label: 'Cross street', value: p.crossStreet }] : []),
                   ...(p.taxes ? [{ label: 'Property taxes', value: `$${p.taxes.toLocaleString()}/yr` }] : []),
                   ...(p.maintenanceFee ? [{ label: 'Maintenance fee', value: `$${p.maintenanceFee.toLocaleString()}/mo` }] : []),
+                  ...(p.daysOnMarket != null ? [{ label: 'Days on market', value: `${p.daysOnMarket} day${p.daysOnMarket !== 1 ? 's' : ''}` }] : []),
+                  { label: 'Listed on', value: new Date(p.listedAt).toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' }) },
+                  { label: 'Last updated', value: new Date(p.updatedAt).toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' }) },
+                  { label: 'City', value: p.location.city },
+                  ...(p.location.neighbourhood ? [{ label: 'Community', value: p.location.neighbourhood }] : []),
+                  ...(p.location.postalCode ? [{ label: 'Postal code', value: p.location.postalCode }] : []),
                 ].map(d => (
-                  <div key={d.label} className="flex justify-between py-2 border-b border-[color:var(--border)] text-sm">
-                    <span className="text-[color:var(--text-muted)]">{d.label}</span>
-                    <span className="font-medium text-[color:var(--foreground)] tabular">{d.value}</span>
+                  <div key={d.label} className="flex justify-between py-2.5 border-b border-[color:var(--border)] text-sm">
+                    <span className="text-[color:var(--text-muted)] shrink-0 pr-4">{d.label}</span>
+                    <span className="font-medium text-[color:var(--foreground)] text-right tabular">{d.value}</span>
                   </div>
                 ))}
               </div>
             </section>
+
+            {/* Listing history */}
+            <ListingHistory propertyId={p.id} currentPrice={p.price} currentStatus={p.status} listedAt={p.listedAt} listingKey={p.listingId} />
           </div>
 
           {/* Right sidebar */}

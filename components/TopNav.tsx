@@ -55,6 +55,17 @@ export default function TopNav() {
             </Link>
           ))}
 
+          {/* Map Search button */}
+          <Link
+            href="/search"
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-[color:var(--accent)] text-white rounded-lg hover:opacity-90 transition-opacity"
+          >
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+              <path d="M6.5 1C4.29 1 2.5 2.79 2.5 5C2.5 7.5 6.5 12 6.5 12C6.5 12 10.5 7.5 10.5 5C10.5 2.79 8.71 1 6.5 1ZM6.5 6.5C5.67 6.5 5 5.83 5 5C5 4.17 5.67 3.5 6.5 3.5C7.33 3.5 8 4.17 8 5C8 5.83 7.33 6.5 6.5 6.5Z" fill="currentColor"/>
+            </svg>
+            Map Search
+          </Link>
+
           {/* New Search button */}
           <a
             href="/"
@@ -159,9 +170,16 @@ export default function TopNav() {
       {mobileOpen && (
         <div className="sm:hidden fixed top-[53px] left-0 right-0 z-40 bg-[color:var(--bg-surface)] border-b border-[color:var(--border)] shadow-lg">
           <nav className="flex flex-col divide-y divide-[color:var(--border)]">
+            <Link href="/search" onClick={() => setMobileOpen(false)}
+              className="px-5 py-3.5 text-sm font-medium text-[color:var(--accent)] hover:bg-[color:var(--bg-surface-2)] transition-colors flex items-center gap-2">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M7 1C4.79 1 3 2.79 3 5C3 7.83 7 13 7 13C7 13 11 7.83 11 5C11 2.79 9.21 1 7 1ZM7 6.5C6.17 6.5 5.5 5.83 5.5 5C5.5 4.17 6.17 3.5 7 3.5C7.83 3.5 8.5 4.17 8.5 5C8.5 5.83 7.83 6.5 7 6.5Z" fill="currentColor"/>
+              </svg>
+              Map Search
+            </Link>
             <a href="/"
               onClick={() => { try { sessionStorage.removeItem('chat_session') } catch {} }}
-              className="px-5 py-3.5 text-sm font-medium text-[color:var(--accent)] hover:bg-[color:var(--bg-surface-2)] transition-colors flex items-center gap-2">
+              className="px-5 py-3.5 text-sm font-medium text-[color:var(--text-muted)] hover:bg-[color:var(--bg-surface-2)] transition-colors flex items-center gap-2">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                 <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.4"/>
                 <path d="M9.5 9.5L12 12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>

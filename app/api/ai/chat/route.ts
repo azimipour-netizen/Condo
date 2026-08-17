@@ -116,7 +116,7 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
   switch (name) {
     case 'search_properties': {
       const filters = validateSearchFilters(input.filters)
-      const limit = typeof input.limit === 'number' ? Math.min(input.limit, 20) : 6
+      const limit = typeof input.limit === 'number' ? Math.min(input.limit, 50) : 20
       return adapter.searchListings(filters, 1, limit)
     }
 

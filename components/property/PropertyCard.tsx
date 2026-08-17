@@ -130,7 +130,7 @@ export default function PropertyCard({ property: p, compact, isSelected, isActiv
 
         <p className="text-xs text-[color:var(--text-muted)] mb-3 truncate">{displayLocation}</p>
 
-        <div className="flex items-center gap-4 text-sm text-[color:var(--text-muted)]">
+        <div className="flex items-center gap-4 text-sm text-[color:var(--text-muted)] mb-3">
           <BedBath beds={p.bedrooms} baths={p.bathroomsTotal} />
           {p.parkingSpaces > 0 && (
             <span className="flex items-center gap-1">
@@ -141,6 +141,28 @@ export default function PropertyCard({ property: p, compact, isSelected, isActiv
             <span className="ml-auto text-xs tabular">{p.sqft.toLocaleString()} sqft</span>
           )}
         </div>
+
+        {/* Extra specs row */}
+        {(p.lotSize || p.maintenanceFee || p.taxes || p.yearBuilt) && (
+          <div className="flex flex-wrap gap-x-4 gap-y-1 mb-3 text-xs text-[color:var(--text-faint)] border-t border-[color:var(--border)] pt-2">
+            {p.lotSize && <span>Lot: {p.lotSize}</span>}
+            {p.yearBuilt && <span>Built: {p.yearBuilt}</span>}
+            {p.maintenanceFee && <span>Maint: ${p.maintenanceFee.toLocaleString()}/mo</span>}
+            {p.taxes && <span>Tax: ${p.taxes.toLocaleString()}/yr</span>}
+          </div>
+        )}
+
+        {/* Description excerpt */}
+        {p.description && (
+          <p className="text-xs text-[color:var(--text-faint)] line-clamp-2 mb-2">{p.description}</p>
+        )}
+
+        {/* Listed date */}
+        {p.listedAt && (
+          <p className="text-[10px] text-[color:var(--text-faint)] mt-auto">
+            Listed {new Date(p.listedAt).toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric' })}
+          </p>
+        )}
       </div>
     </div>
   )

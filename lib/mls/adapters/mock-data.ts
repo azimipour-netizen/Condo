@@ -36,6 +36,7 @@ export const MOCK_PROPERTIES: Property[] = [
     ],
     listedAt: '2025-07-28T10:00:00Z',
     updatedAt: '2025-08-01T09:30:00Z',
+    rooms: 8, kitchens: 1, basement: 'Finished', crossStreet: 'Sheppard & Yonge', daysOnMarket: 4,
   },
   {
     id: 'prop-002',
@@ -72,6 +73,7 @@ export const MOCK_PROPERTIES: Property[] = [
     ],
     listedAt: '2025-08-05T11:00:00Z',
     updatedAt: '2025-08-05T11:00:00Z',
+    rooms: 5, kitchens: 1, basement: null, crossStreet: 'Yonge & Eglinton', daysOnMarket: 11,
   },
   {
     id: 'prop-003',
@@ -108,6 +110,7 @@ export const MOCK_PROPERTIES: Property[] = [
     ],
     listedAt: '2025-08-02T09:00:00Z',
     updatedAt: '2025-08-10T14:00:00Z',
+    rooms: 7, kitchens: 1, basement: 'Partial', crossStreet: 'Dundas & Keele', daysOnMarket: 14,
   },
   {
     id: 'prop-004',
@@ -143,6 +146,7 @@ export const MOCK_PROPERTIES: Property[] = [
     ],
     listedAt: '2025-08-08T10:30:00Z',
     updatedAt: '2025-08-08T10:30:00Z',
+    rooms: 4, kitchens: 1, basement: null, crossStreet: 'King & Bathurst', daysOnMarket: 9,
   },
   {
     id: 'prop-005',
@@ -179,6 +183,7 @@ export const MOCK_PROPERTIES: Property[] = [
     ],
     listedAt: '2025-07-15T08:00:00Z',
     updatedAt: '2025-08-12T10:00:00Z',
+    rooms: 10, kitchens: 1, basement: 'Finished', crossStreet: 'Bayview & 16th', daysOnMarket: 28,
   },
   {
     id: 'prop-006',
@@ -214,6 +219,7 @@ export const MOCK_PROPERTIES: Property[] = [
     ],
     listedAt: '2025-08-11T09:00:00Z',
     updatedAt: '2025-08-11T09:00:00Z',
+    rooms: 6, kitchens: 1, basement: null, crossStreet: 'Queen & Leslie', daysOnMarket: 6,
   },
   {
     id: 'prop-007',
@@ -250,6 +256,7 @@ export const MOCK_PROPERTIES: Property[] = [
     ],
     listedAt: '2025-07-20T10:00:00Z',
     updatedAt: '2025-08-08T16:00:00Z',
+    rooms: 9, kitchens: 1, basement: 'Legal Apartment', crossStreet: 'Lawrence & Yonge', daysOnMarket: 19,
   },
   {
     id: 'prop-008',
@@ -285,5 +292,6 @@ export const MOCK_PROPERTIES: Property[] = [
     ],
     listedAt: '2025-08-13T08:00:00Z',
     updatedAt: '2025-08-13T08:00:00Z',
+    rooms: 7, kitchens: 1, basement: 'Unfinished', crossStreet: 'Roncesvalles & Howard Park', daysOnMarket: 4,
   },
 ]

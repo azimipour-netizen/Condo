@@ -11,17 +11,13 @@ export const metadata: Metadata = { title: 'My Favorite Listings' }
 
 function toSummary(p: Property): PropertySummary {
   return {
-    id: p.id,
-    status: p.status,
-    price: p.price,
-    propertyType: p.propertyType,
-    bedrooms: p.bedrooms,
-    bathroomsTotal: p.bathroomsTotal,
-    parkingSpaces: p.parkingSpaces,
-    sqft: p.sqft,
-    title: p.title,
-    location: p.location,
-    thumbnail: p.images[0]?.url ?? null,
+    id: p.id, status: p.status, transactionType: p.transactionType, price: p.price,
+    propertyType: p.propertyType, bedrooms: p.bedrooms, bathroomsTotal: p.bathroomsTotal,
+    parkingSpaces: p.parkingSpaces, sqft: p.sqft, lotSize: p.lotSize, yearBuilt: p.yearBuilt,
+    maintenanceFee: p.maintenanceFee, taxes: p.taxes, title: p.title,
+    description: p.description, features: p.features,
+    location: p.location, thumbnail: p.images[0]?.url ?? null,
+    listedAt: p.listedAt, updatedAt: p.updatedAt,
   }
 }
 
@@ -63,25 +59,19 @@ export default async function FavoritesPage() {
         },
       })
       dbFallbacks = rows.map((r: any) => ({
-        id: r.id,
-        status: r.status,
-        price: Number(r.price),
-        propertyType: r.propertyType,
-        bedrooms: r.bedrooms,
-        bathroomsTotal: Number(r.bathroomsTotal),
-        parkingSpaces: r.parkingSpaces,
-        sqft: r.sqft,
-        title: r.title,
+        id: r.id, status: r.status, transactionType: r.transactionType ?? 'sale',
+        price: Number(r.price), propertyType: r.propertyType,
+        bedrooms: r.bedrooms, bathroomsTotal: Number(r.bathroomsTotal),
+        parkingSpaces: r.parkingSpaces, sqft: r.sqft,
+        lotSize: null, yearBuilt: null, maintenanceFee: null, taxes: null,
+        title: r.title, description: '', features: [],
         thumbnail: r.images[0]?.url ?? null,
         location: {
           latitude: r.latitude ? Number(r.latitude) : null,
           longitude: r.longitude ? Number(r.longitude) : null,
-          displayMode: r.displayMode,
-          address: r.address,
-          neighbourhood: r.neighbourhood,
-          city: r.city,
-          province: r.province,
-          postalCode: r.postalCode,
+          displayMode: r.displayMode, address: r.address,
+          neighbourhood: r.neighbourhood, city: r.city,
+          province: r.province, postalCode: r.postalCode,
         },
       }))
     } catch {}

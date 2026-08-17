@@ -28,6 +28,8 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: 'cdn.realtor.ca' },
       { protocol: 'https', hostname: '*.rets.io' },
       { protocol: 'https', hostname: '*.mlsmedia.ca' },
+      { protocol: 'https', hostname: 'trreb-image.ampre.ca' },
+      { protocol: 'https', hostname: '*.ampre.ca' },
     ],
   },
 };

@@ -36,6 +36,12 @@ export interface Property {
   virtualTourUrl?: string | null
   listedAt: string
   updatedAt: string
+  // Additional TRREB/AMPRE fields
+  rooms: number | null
+  kitchens: number | null
+  basement: string | null
+  crossStreet: string | null
+  daysOnMarket: number | null
 }
 
 export interface PropertyImage {
@@ -47,14 +53,22 @@ export interface PropertyImage {
 export interface PropertySummary {
   id: string
   status: PropertyStatus
+  transactionType: 'sale' | 'lease'
   price: number
   propertyType: PropertyType
   bedrooms: number
   bathroomsTotal: number
   parkingSpaces: number
   sqft: number | null
+  lotSize: string | null
+  yearBuilt: number | null
+  maintenanceFee: number | null
+  taxes: number | null
   title: string
+  description: string
+  features: string[]
   location: PropertyLocation
   thumbnail: string | null
   listedAt?: string | null
+  updatedAt?: string | null
 }

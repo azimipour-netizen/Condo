@@ -40,7 +40,7 @@ export const AI_TOOLS: Anthropic.Tool[] = [
             },
           },
         },
-        limit: { type: 'number', description: 'Max results to return (default 6)', default: 6 },
+        limit: { type: 'number', description: 'Max results to return. Always pass 20 unless the user explicitly asks for fewer.', default: 20 },
       },
       required: ['filters'],
     },

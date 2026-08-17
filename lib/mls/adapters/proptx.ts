@@ -14,6 +14,7 @@
 import type { IMLSAdapter } from '../types'
 import type { Property, PropertySummary, PropertyType, PropertyStatus } from '@/types/property'
 import type { SearchFilters, SearchResult } from '@/types/search'
+import { geocodeBatch } from '@/lib/geo/geocode'
 
 const API_URL   = (process.env.MLS_API_URL ?? 'https://query.ampre.ca/odata').replace(/\/$/, '')
 const IDX_TOKEN = process.env.MLS_IDX_TOKEN ?? ''
@@ -21,10 +22,13 @@ const VOW_TOKEN = process.env.MLS_VOW_TOKEN ?? ''
 
 async function reso<T>(path: string, params: Record<string, string> = {}, useVow = false): Promise<T> {
   const token = (useVow && VOW_TOKEN) ? VOW_TOKEN : IDX_TOKEN
-  const url = new URL(`${API_URL}/${path}`)
-  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v)
 
-  const res = await fetch(url.toString(), {
+  // Bypass URLSearchParams: it encodes $ → %24 (breaks OData param names like $filter)
+  // and ' → %27 (AMPRE rejects encoded apostrophes in string literals). OData expressions
+  // are valid query-string content as-is, so we concatenate without encoding.
+  const qs = Object.entries(params).map(([k, v]) => `${k}=${v}`).join('&')
+  const rawUrl = `${API_URL}/${path}${qs ? '?' + qs : ''}`
+  const res = await fetch(rawUrl, {
     headers: {
       Authorization: `Bearer ${token}`,
       Accept: 'application/json',
@@ -70,46 +74,55 @@ function mapStatus(raw: string): PropertyStatus {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function normalize(r: any): Property {
+  // AMPRE does not expose Latitude/Longitude through any token tier
   const loc = {
-    latitude:     r.Latitude   ? Number(r.Latitude)   : null,
-    longitude:    r.Longitude  ? Number(r.Longitude)  : null,
-    displayMode:  'approximate' as const,
-    address:      r.UnparsedAddress ?? null,
-    neighbourhood: r.SubdivisionName ?? r.CommunityName ?? null,
-    city:         r.City ?? 'Toronto',
-    province:     r.StateOrProvince ?? 'ON',
-    postalCode:   r.PostalCode ?? null,
+    latitude:      null,
+    longitude:     null,
+    displayMode:   'approximate' as const,
+    address:       r.UnparsedAddress ?? null,
+    // CityRegion contains the neighbourhood code (e.g. "C01 - Waterfront Communities")
+    neighbourhood: r.CityRegion ? r.CityRegion.replace(/^\w+\s*-\s*/, '') : null,
+    city:          r.City ?? 'Toronto',
+    province:      r.StateOrProvince ?? 'ON',
+    postalCode:    r.PostalCode ?? null,
   }
 
-  // Photos come via $expand=Media or MediaURL fields
-  const mediaItems: Array<{ Order: number; MediaURL: string }> =
-    r.Media ?? []
+  const mediaItems: Array<{ Order: number; MediaURL: string; MediaCategory?: string; MediaType?: string }> = r.Media ?? []
   const images = mediaItems
+    .filter(m => (m.MediaCategory ?? 'Photo') === 'Photo' && m.MediaURL)
     .sort((a, b) => (a.Order ?? 0) - (b.Order ?? 0))
+    .slice(0, 40)
     .map((m, i) => ({ url: m.MediaURL, order: i, alt: null }))
 
   const features: string[] = []
-  if (r.Heating) features.push(`Heating: ${r.Heating}`)
-  if (r.Cooling) features.push(`Cooling: ${r.Cooling}`)
+  if (r.HeatType) features.push(`Heating: ${Array.isArray(r.HeatType) ? r.HeatType.join(', ') : r.HeatType}`)
+  if (r.Cooling?.length) features.push(`Cooling: ${Array.isArray(r.Cooling) ? r.Cooling.join(', ') : r.Cooling}`)
   if (r.GarageType) features.push(`Garage: ${r.GarageType}`)
-  if (r.WaterSource) features.push(`Water: ${r.WaterSource}`)
-  if (r.Appliances) features.push(...String(r.Appliances).split(',').map((s: string) => s.trim()))
+  if (r.WaterSource?.length) features.push(`Water: ${Array.isArray(r.WaterSource) ? r.WaterSource.join(', ') : r.WaterSource}`)
 
   const transactionType = (r.TransactionType ?? '').toLowerCase().includes('lease') ? 'lease' : 'sale'
 
+  const listedAt = r.OriginalEntryTimestamp ?? r.ModificationTimestamp ?? new Date().toISOString()
+  const daysOnMarket = r.DaysOnMarket
+    ? Number(r.DaysOnMarket)
+    : listedAt
+      ? Math.floor((Date.now() - new Date(listedAt).getTime()) / 86_400_000)
+      : null
+
   return {
-    id:             r.ListingKey ?? r.ListingId,
-    listingId:      r.ListingId  ?? r.ListingKey,
+    id:             r.ListingKey,
+    listingId:      r.ListingKey,
     status:         mapStatus(r.StandardStatus),
     transactionType,
     price:          Number(r.ListPrice ?? 0),
     propertyType:   mapPropertyType(r.PropertyType ?? '', r.PropertySubType ?? ''),
-    bedrooms:       Number(r.BedroomsTotal ?? 0),
-    bathroomsTotal: Number(r.BathroomsTotalInteger ?? r.BathroomsTotal ?? 0),
+    bedrooms:       Number(r.BedroomsTotal ?? r.BedroomsAboveGrade ?? 0),
+    bathroomsTotal: Number(r.BathroomsTotalInteger ?? 0),
     parkingSpaces:  Number(r.ParkingTotal ?? 0),
-    sqft:           r.LivingArea ? Number(r.LivingArea) : null,
+    // AMPRE has no LivingArea; BuildingAreaTotal is populated for commercial only
+    sqft:           r.BuildingAreaTotal ? Number(r.BuildingAreaTotal) : null,
     lotSize:        r.LotSizeArea ? `${r.LotSizeArea} ${r.LotSizeUnits ?? 'sqft'}` : null,
-    yearBuilt:      r.YearBuilt   ? Number(r.YearBuilt) : null,
+    yearBuilt:      null,
     maintenanceFee: r.AssociationFee ? Number(r.AssociationFee) : null,
     taxes:          r.TaxAnnualAmount ? Number(r.TaxAnnualAmount) : null,
     title:          r.UnparsedAddress ?? `${r.BedroomsTotal ?? '?'}BR in ${r.City ?? 'Toronto'}`,
@@ -118,25 +131,38 @@ function normalize(r: any): Property {
     location:       loc,
     images,
     virtualTourUrl: r.VirtualTourURLUnbranded ?? r.VirtualTourURLBranded ?? null,
-    listedAt:       r.ListingContractDate ?? r.OnMarketDate ?? new Date().toISOString(),
-    updatedAt:      r.ModificationTimestamp ?? new Date().toISOString(),
+    listedAt,
+    updatedAt:      r.ModificationTimestamp ?? listedAt,
+    rooms:          r.RoomsTotal ? Number(r.RoomsTotal) : null,
+    kitchens:       r.KitchensTotal ? Number(r.KitchensTotal) : null,
+    basement:       r.Basement1 ?? null,
+    crossStreet:    r.CrossStreet ?? null,
+    daysOnMarket,
   }
 }
 
 function toSummary(p: Property): PropertySummary {
   return {
-    id:             p.id,
-    status:         p.status,
-    price:          p.price,
-    propertyType:   p.propertyType,
-    bedrooms:       p.bedrooms,
-    bathroomsTotal: p.bathroomsTotal,
-    parkingSpaces:  p.parkingSpaces,
-    sqft:           p.sqft,
-    title:          p.title,
-    location:       p.location,
-    thumbnail:      p.images[0]?.url ?? null,
-    listedAt:       p.listedAt,
+    id:              p.id,
+    status:          p.status,
+    transactionType: p.transactionType,
+    price:           p.price,
+    propertyType:    p.propertyType,
+    bedrooms:        p.bedrooms,
+    bathroomsTotal:  p.bathroomsTotal,
+    parkingSpaces:   p.parkingSpaces,
+    sqft:            p.sqft,
+    lotSize:         p.lotSize,
+    yearBuilt:       p.yearBuilt,
+    maintenanceFee:  p.maintenanceFee,
+    taxes:           p.taxes,
+    title:           p.title,
+    description:     p.description,
+    features:        p.features,
+    location:        p.location,
+    thumbnail:       p.images[0]?.url ?? null,
+    listedAt:        p.listedAt,
+    updatedAt:       p.updatedAt,
   }
 }
 
@@ -152,50 +178,67 @@ function buildFilter(filters: SearchFilters): string {
   if (filters.parkingMin || filters.hasParking) {
     parts.push(`ParkingTotal ge ${filters.parkingMin ?? 1}`)
   }
-  if (filters.sqftMin) parts.push(`LivingArea ge ${filters.sqftMin}`)
-  if (filters.sqftMax) parts.push(`LivingArea le ${filters.sqftMax}`)
+  // Note: LivingArea doesn't exist in AMPRE; sqft filters are skipped
 
   if (filters.propertyTypes?.length) {
-    const resoSubTypes = filters.propertyTypes.map(mapToResoSubType)
-    const clause = resoSubTypes.map(t => `PropertySubType eq '${t}'`).join(' or ')
-    parts.push(`(${clause})`)
+    const clause = filters.propertyTypes.map(mapToAmpre).flat().join(' or ')
+    if (clause) parts.push(`(${clause})`)
   }
 
   const loc = filters.location
   if (loc?.type === 'city' && loc.value) {
-    parts.push(`City eq '${loc.value.replace(/'/g, "''")}'`)
+    const v = loc.value.replace(/'/g, "''")
+    // AMPRE stores Toronto as district codes: "Toronto C01", "Toronto E02", etc.
+    // Any value containing "toronto" needs a contains() match, not an eq match.
+    if (v.toLowerCase().includes('toronto')) {
+      parts.push("contains(City,'Toronto')")
+    } else {
+      parts.push(`City eq '${v}'`)
+    }
   }
   if (loc?.type === 'neighbourhood' && loc.value) {
-    parts.push(`(contains(SubdivisionName,'${loc.value.replace(/'/g, "''")}') or contains(CommunityName,'${loc.value.replace(/'/g, "''")}'))`)
+    const v = loc.value.replace(/'/g, "''")
+    // CityRegion holds plain neighbourhood names ("Waterfront Communities C1", "The Beaches")
+    // Also fall back to City contains for area-name searches
+    parts.push(`(contains(CityRegion,'${v}') or contains(City,'${v}'))`)
   }
 
-  const bbox = filters.bbox ?? loc?.bbox
-  if (bbox && loc?.type === 'bbox') {
-    parts.push(`Latitude ge ${bbox.south} and Latitude le ${bbox.north}`)
-    parts.push(`Longitude ge ${bbox.west} and Longitude le ${bbox.east}`)
-  }
-
-  if (loc?.type === 'radius' && loc.center && loc.radiusKm) {
-    // Approximate bounding box for radius (RESO geo functions vary by provider)
-    const deg = loc.radiusKm / 111
-    const { latitude: lat, longitude: lng } = loc.center
-    parts.push(`Latitude ge ${lat - deg} and Latitude le ${lat + deg}`)
-    parts.push(`Longitude ge ${lng - deg} and Longitude le ${lng + deg}`)
-  }
+  // Note: AMPRE does not expose Latitude/Longitude — bbox and radius filters are skipped
 
   return parts.join(' and ')
 }
 
-function mapToResoSubType(t: PropertyType): string {
+// Returns one or more OData filter clauses for a property type.
+// AMPRE uses TRREB-specific PropertyType/SubType values, not RESO standard names.
+function mapToAmpre(t: PropertyType): string[] {
   switch (t) {
-    case 'detached':      return 'Single Family Residence'
-    case 'semi-detached': return 'Semi-Detached'
-    case 'townhouse':     return 'Townhouse'
-    case 'condo':         return 'Condominium'
-    case 'multiplex':     return 'Multiplex'
-    case 'vacant_land':   return 'Unimproved Land'
-    case 'commercial':    return 'Commercial'
-    default:              return 'Single Family Residence'
+    case 'condo':
+      // PropertyType "Residential Condo & Other" has literal & that breaks raw URL concat.
+      // Use contains on SubType — matches Condo Apartment, Condo Townhouse, Det Condo, etc.
+      return ["contains(PropertySubType,'Condo')"]
+    case 'detached':
+      return ["PropertySubType eq 'Detached'"]
+    case 'semi-detached':
+      return ["PropertySubType eq 'Semi-Detached'"]
+    case 'townhouse':
+      return [
+        "PropertySubType eq 'Att/Row/Twnhouse'",
+        "PropertySubType eq 'Condo Townhouse'",
+        "PropertySubType eq 'Freehold Rowhouse'",
+        "PropertySubType eq 'Link'",
+      ]
+    case 'multiplex':
+      return [
+        "PropertySubType eq 'Multiplex'",
+        "PropertySubType eq 'Duplex'",
+        "PropertySubType eq 'Triplex'",
+      ]
+    case 'vacant_land':
+      return ["PropertySubType eq 'Vacant Land'"]
+    case 'commercial':
+      return ["PropertyType eq 'Commercial'"]
+    default:
+      return []
   }
 }
 
@@ -213,26 +256,54 @@ export class PropTxAdapter implements IMLSAdapter {
         $filter,
         $top:    String(limit),
         $skip:   String(skip),
-        $expand: 'Media($select=MediaURL,Order)',
+        // AMPRE: nested $select inside $expand returns empty body — use bare $expand=Media
+        $expand: 'Media',
         $select: [
-          'ListingKey','ListingId','StandardStatus','TransactionType',
-          'ListPrice','PropertyType','PropertySubType',
-          'BedroomsTotal','BathroomsTotalInteger','ParkingTotal',
-          'LivingArea','LotSizeArea','LotSizeUnits','YearBuilt',
+          // Identity
+          'ListingKey','StandardStatus','TransactionType',
+          // Price
+          'ListPrice','ListPriceUnit',
+          // Property classification
+          'PropertyType','PropertySubType',
+          // Counts
+          'BedroomsTotal','BedroomsAboveGrade','BedroomsBelowGrade',
+          'BathroomsTotalInteger','ParkingTotal','GarageType',
+          // Size (LivingArea doesn't exist in AMPRE; BuildingAreaTotal is commercial-only)
+          'BuildingAreaTotal','BuildingAreaUnits','LotSizeArea','LotSizeUnits',
+          // Fees
           'AssociationFee','TaxAnnualAmount',
-          'UnparsedAddress','City','StateOrProvince','PostalCode',
-          'SubdivisionName','CommunityName','Latitude','Longitude',
-          'PublicRemarks','ListingContractDate','ModificationTimestamp',
-          'VirtualTourURLUnbranded',
+          // Location (no Latitude/Longitude in AMPRE)
+          'UnparsedAddress','StreetNumber','StreetName','StreetSuffix','UnitNumber',
+          'City','CityRegion','StateOrProvince','PostalCode',
+          // Description
+          'PublicRemarks',
+          // Timestamps
+          'OriginalEntryTimestamp','ModificationTimestamp',
+          // Extras
+          'VirtualTourURLUnbranded','HeatType','Cooling','WaterSource',
+          // Additional property details
+          'RoomsTotal','KitchensTotal','Basement1','CrossStreet','DaysOnMarket',
         ].join(','),
         $orderby: 'ModificationTimestamp desc',
       }),
-      reso<{ '@odata.count': number }>('Property/$count', { $filter }),
+      reso<{ '@odata.count': number }>('Property/$count', { $filter }).catch(() => null),
     ])
 
-    const total = countData['@odata.count'] ?? data.value.length
+    const total = countData?.['@odata.count'] ?? data.value.length
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const properties = data.value.map((r: any) => toSummary(normalize(r)))
+    const normalized = data.value.map((r: any) => normalize(r))
+
+    // Geocode via postal code — AMPRE doesn't provide Latitude/Longitude
+    const coords = await geocodeBatch(
+      normalized.map(p => ({ postalCode: p.location.postalCode, city: p.location.city }))
+    )
+    const properties = normalized.map((p, i) => {
+      if (coords[i]) {
+        p.location.latitude  = coords[i]!.lat
+        p.location.longitude = coords[i]!.lng
+      }
+      return toSummary(p)
+    })
 
     return { properties, total, page, totalPages: Math.ceil(total / limit), appliedFilters: filters }
   }
@@ -240,8 +311,8 @@ export class PropTxAdapter implements IMLSAdapter {
   async getListing(id: string): Promise<Property | null> {
     try {
       const data = await reso<{ value: unknown[] }>('Property', {
-        $filter:  `ListingKey eq '${id}' or ListingId eq '${id}'`,
-        $expand:  'Media($select=MediaURL,Order)',
+        $filter:  `ListingKey eq '${id}'`,
+        $expand:  'Media',
         $top:     '1',
       })
       if (!data.value.length) return null
@@ -256,7 +327,7 @@ export class PropTxAdapter implements IMLSAdapter {
     const iso = since.toISOString()
     const data = await reso<{ value: unknown[] }>('Property', {
       $filter:  `ModificationTimestamp gt ${iso}`,
-      $expand:  'Media($select=MediaURL,Order)',
+      $expand:  'Media',
       $top:     '500',
       $orderby: 'ModificationTimestamp asc',
     })

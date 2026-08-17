@@ -10,6 +10,8 @@ const QuerySchema = z.object({
   priceMin: z.coerce.number().optional(),
   priceMax: z.coerce.number().optional(),
   bedroomsMin: z.coerce.number().optional(),
+  bathroomsMin: z.coerce.number().optional(),
+  hasParking: z.coerce.boolean().optional(),
   propertyType: z.string().optional(),
   neighbourhood: z.string().optional(),
   city: z.string().optional(),
@@ -31,6 +33,8 @@ export async function GET(req: NextRequest) {
       ...(q.priceMin && { priceMin: q.priceMin }),
       ...(q.priceMax && { priceMax: q.priceMax }),
       ...(q.bedroomsMin && { bedroomsMin: q.bedroomsMin }),
+      ...(q.bathroomsMin && { bathroomsMin: q.bathroomsMin }),
+      ...(q.hasParking && { hasParking: true }),
       ...(q.propertyType && { propertyTypes: [q.propertyType] }),
       ...(q.neighbourhood && { location: { type: 'neighbourhood', value: q.neighbourhood } }),
       ...(q.north && q.south && q.east && q.west && {
