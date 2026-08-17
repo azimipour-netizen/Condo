@@ -38,7 +38,10 @@ async function reso<T>(path: string, params: Record<string, string> = {}, useVow
     next: { revalidate: 300 },
   })
 
-  if (!res.ok) throw new Error(`PropTx API error: ${res.status} ${path}`)
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(`PropTx API error: ${res.status} ${path} — ${body.slice(0, 300)}`)
+  }
   return res.json() as Promise<T>
 }
 
@@ -257,33 +260,8 @@ export class PropTxAdapter implements IMLSAdapter {
         $top:    String(limit),
         $skip:   String(skip),
         // AMPRE: nested $select inside $expand returns empty body — use bare $expand=Media
+        // $select omitted: including TRREB-specific fields causes AMPRE to return 400
         $expand: 'Media',
-        $select: [
-          // Identity
-          'ListingKey','StandardStatus','TransactionType',
-          // Price
-          'ListPrice','ListPriceUnit',
-          // Property classification
-          'PropertyType','PropertySubType',
-          // Counts
-          'BedroomsTotal','BedroomsAboveGrade','BedroomsBelowGrade',
-          'BathroomsTotalInteger','ParkingTotal','GarageType',
-          // Size (LivingArea doesn't exist in AMPRE; BuildingAreaTotal is commercial-only)
-          'BuildingAreaTotal','BuildingAreaUnits','LotSizeArea','LotSizeUnits',
-          // Fees
-          'AssociationFee','TaxAnnualAmount',
-          // Location (no Latitude/Longitude in AMPRE)
-          'UnparsedAddress','StreetNumber','StreetName','StreetSuffix','UnitNumber',
-          'City','CityRegion','StateOrProvince','PostalCode',
-          // Description
-          'PublicRemarks',
-          // Timestamps
-          'OriginalEntryTimestamp','ModificationTimestamp',
-          // Extras
-          'VirtualTourURLUnbranded','HeatType','Cooling','WaterSource',
-          // Additional property details
-          'RoomsTotal','KitchensTotal','Basement1','CrossStreet','DaysOnMarket',
-        ].join(','),
         $orderby: 'ModificationTimestamp desc',
       }),
       reso<{ '@odata.count': number }>('Property/$count', { $filter }).catch(() => null),
