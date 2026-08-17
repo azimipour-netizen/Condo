@@ -3,7 +3,7 @@ import Link from 'next/link'
 import SearchHero from '@/components/ai/SearchHero'
 import PropertyCard from '@/components/property/PropertyCard'
 import type { PropertySummary } from '@/types/property'
-import { db } from '@/lib/db'
+import { getMLSAdapter } from '@/lib/mls/adapter'
 
 export const metadata: Metadata = {
   title: 'Condohill — Toronto Real Estate',
@@ -12,73 +12,11 @@ export const metadata: Metadata = {
 
 async function getHomeData() {
   try {
-    const [featuredRaw, stats] = await Promise.all([
-      (db as any).property.findMany({
-        where: { status: 'active' },
-        orderBy: { listedAt: 'desc' },
-        take: 6,
-        select: {
-          id: true,
-          listingId: true,
-          title: true,
-          status: true,
-          price: true,
-          propertyType: true,
-          transactionType: true,
-          bedrooms: true,
-          bathroomsTotal: true,
-          parkingSpaces: true,
-          sqft: true,
-          latitude: true,
-          longitude: true,
-          displayMode: true,
-          address: true,
-          neighbourhood: true,
-          city: true,
-          province: true,
-          postalCode: true,
-          listedAt: true,
-          images: { orderBy: { order: 'asc' }, take: 1, select: { url: true } },
-        },
-      }),
-      (db as any).property.aggregate({
-        where: { status: 'active' },
-        _count: { id: true },
-        _avg: { price: true },
-      }),
-    ])
-
-    const featured = featuredRaw.map((p: any) => ({
-      id: p.id,
-      listingId: p.listingId,
-      title: p.title,
-      status: p.status,
-      price: Number(p.price),
-      propertyType: p.propertyType,
-      transactionType: p.transactionType,
-      bedrooms: p.bedrooms,
-      bathroomsTotal: Number(p.bathroomsTotal),
-      parkingSpaces: p.parkingSpaces,
-      sqft: p.sqft,
-      thumbnail: p.images[0]?.url ?? null,
-      listedAt: p.listedAt?.toISOString() ?? null,
-      location: {
-        latitude: p.latitude ? Number(p.latitude) : null,
-        longitude: p.longitude ? Number(p.longitude) : null,
-        displayMode: p.displayMode,
-        address: p.address,
-        neighbourhood: p.neighbourhood,
-        city: p.city,
-        province: p.province,
-        postalCode: p.postalCode,
-      },
-    }))
-
-    return {
-      featured,
-      activeCount: stats._count.id ?? 0,
-      avgPrice: stats._avg.price ? Math.round(Number(stats._avg.price) / 1000) * 1000 : null,
-    }
+    const adapter = getMLSAdapter()
+    const result = await adapter.searchListings({}, 1, 6)
+    const featured = result.properties as PropertySummary[]
+    const activeCount = result.total
+    return { featured, activeCount, avgPrice: null }
   } catch {
     return { featured: [], activeCount: 0, avgPrice: null }
   }
