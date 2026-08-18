@@ -272,9 +272,10 @@ export class PropTxAdapter implements IMLSAdapter {
         $filter,
         $top:    String(effectiveLimit),
         $skip:   String(skip),
-        // $expand=Media omitted: each listing returns 20-40 image URLs, pushing
-        // 20 results to 5MB which exceeds Next.js 2MB cache limit. Images are
-        // loaded on the individual property page via getListing().
+        // $expand=Media($top=1): fetch only the first photo per listing for thumbnails.
+        // Full $expand=Media returned 20-40 images/listing → 5MB (over Next.js 2MB cache limit).
+        // $top=1 limits to one image, keeping the total response small and cacheable.
+        $expand: 'Media($top=1)',
         $select: [
           'ListingKey','StandardStatus','TransactionType',
           'ListPrice',

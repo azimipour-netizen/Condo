@@ -23,7 +23,8 @@ const TYPE_LABELS: Record<string, string> = {
 }
 
 export default function PropertyCard({ property: p, compact, isSelected, isActive, onToggleCompare, canCompare = true }: Props) {
-  const displayLocation = [p.location.neighbourhood, p.location.city].filter(Boolean).join(', ')
+  const streetAddress = p.location.address
+  const subLocation = [p.location.neighbourhood, p.location.city].filter(Boolean).join(', ')
 
   if (compact) {
     return (
@@ -39,7 +40,8 @@ export default function PropertyCard({ property: p, compact, isSelected, isActiv
           <div className="flex items-start justify-between gap-2">
             <Link href={`/property/${p.id}`} className="min-w-0">
               <p className="text-base font-bold tabular text-[color:var(--foreground)]">${p.price.toLocaleString()}</p>
-              <p className="text-xs text-[color:var(--text-muted)] truncate mt-0.5">{displayLocation}</p>
+              {streetAddress && <p className="text-xs font-medium text-[color:var(--foreground)] truncate mt-0.5">{streetAddress}</p>}
+              <p className="text-xs text-[color:var(--text-muted)] truncate">{subLocation}</p>
             </Link>
             <span className="shrink-0 text-xs bg-[color:var(--bg-surface-2)] text-[color:var(--text-muted)] px-2 py-0.5 rounded-full">
               {TYPE_LABELS[p.propertyType] ?? p.propertyType}
@@ -128,7 +130,8 @@ export default function PropertyCard({ property: p, compact, isSelected, isActiv
           </div>
         </div>
 
-        <p className="text-xs text-[color:var(--text-muted)] mb-3 truncate">{displayLocation}</p>
+        {streetAddress && <p className="text-sm font-medium text-[color:var(--foreground)] mb-0.5 truncate">{streetAddress}</p>}
+        <p className="text-xs text-[color:var(--text-muted)] mb-3 truncate">{subLocation}</p>
 
         <div className="flex items-center gap-4 text-sm text-[color:var(--text-muted)] mb-3">
           <BedBath beds={p.bedrooms} baths={p.bathroomsTotal} />
