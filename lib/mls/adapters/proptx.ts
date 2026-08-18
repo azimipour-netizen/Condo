@@ -171,8 +171,19 @@ function toSummary(p: Property): PropertySummary {
 
 // ─── OData filter builder ────────────────────────────────────────────────────
 
+function hasActiveFilters(filters: SearchFilters): boolean {
+  return !!(
+    filters.priceMin || filters.priceMax ||
+    filters.bedroomsMin || filters.bathroomsMin ||
+    filters.parkingMin || filters.hasParking ||
+    filters.propertyTypes?.length ||
+    filters.location
+  )
+}
+
 function buildFilter(filters: SearchFilters): string {
-  const parts: string[] = ["StandardStatus eq 'Active'"]
+  // Default to for-sale only — leases are excluded unless a lease filter is added later
+  const parts: string[] = ["StandardStatus eq 'Active'", "not contains(TransactionType,'Lease')"]
 
   if (filters.priceMin) parts.push(`ListPrice ge ${filters.priceMin}`)
   if (filters.priceMax) parts.push(`ListPrice le ${filters.priceMax}`)
@@ -250,14 +261,16 @@ function mapToAmpre(t: PropertyType): string[] {
 export class PropTxAdapter implements IMLSAdapter {
   readonly name = 'proptx'
 
-  async searchListings(filters: SearchFilters, page = 1, limit = 20): Promise<SearchResult> {
-    const skip = (page - 1) * limit
+  async searchListings(filters: SearchFilters, page = 1, limit?: number): Promise<SearchResult> {
+    // No filters = default map view: fetch more pins. Active filters = smaller focused set.
+    const effectiveLimit = limit ?? (hasActiveFilters(filters) ? 50 : 100)
+    const skip = (page - 1) * effectiveLimit
     const $filter = buildFilter(filters)
 
     const [data, countData] = await Promise.all([
       reso<{ value: unknown[] }>('Property', {
         $filter,
-        $top:    String(limit),
+        $top:    String(effectiveLimit),
         $skip:   String(skip),
         // $expand=Media omitted: each listing returns 20-40 image URLs, pushing
         // 20 results to 5MB which exceeds Next.js 2MB cache limit. Images are
@@ -298,7 +311,7 @@ export class PropTxAdapter implements IMLSAdapter {
       return toSummary(p)
     })
 
-    return { properties, total, page, totalPages: Math.ceil(total / limit), appliedFilters: filters }
+    return { properties, total, page, totalPages: Math.ceil(total / effectiveLimit), appliedFilters: filters }
   }
 
   async getListing(id: string): Promise<Property | null> {

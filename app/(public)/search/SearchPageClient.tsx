@@ -73,7 +73,7 @@ export default function SearchPageClient({ initialResult, initialFilters, initia
         params.set('east', String(nextFilters.bbox.east))
         params.set('west', String(nextFilters.bbox.west))
       }
-      params.set('limit', '50')
+      // No explicit limit — adapter chooses 100 for unfiltered, 50 for filtered
       const res = await fetch(`/api/properties?${params}`)
       if (res.ok) {
         const data = await res.json()

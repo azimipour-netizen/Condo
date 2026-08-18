@@ -6,7 +6,7 @@ import { z } from 'zod'
 
 const QuerySchema = z.object({
   page: z.coerce.number().min(1).default(1),
-  limit: z.coerce.number().min(1).max(50).default(20),
+  limit: z.coerce.number().min(1).max(100).optional(),
   priceMin: z.coerce.number().optional(),
   priceMax: z.coerce.number().optional(),
   bedroomsMin: z.coerce.number().optional(),
@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
     })
 
     const adapter = getMLSAdapter()
-    const result = await adapter.searchListings(filters, q.page, q.limit)
+    const result = await adapter.searchListings(filters, q.page, q.limit ?? undefined)
 
     return NextResponse.json(result)
   } catch (err) {

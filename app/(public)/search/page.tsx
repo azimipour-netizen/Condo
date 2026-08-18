@@ -29,7 +29,7 @@ export default async function SearchPage({ searchParams }: Props) {
   const adapter = getMLSAdapter()
   let result: Awaited<ReturnType<typeof adapter.searchListings>>
   try {
-    result = await adapter.searchListings(filters, 1, 50)
+    result = await adapter.searchListings(filters, 1)
   } catch {
     result = { properties: [], total: 0, page: 1, totalPages: 0, appliedFilters: filters }
   }
