@@ -10,7 +10,7 @@ export interface IMLSAdapter {
   readonly name: string
 
   /** Fetch a page of listings matching the given filters */
-  searchListings(filters: SearchFilters, page: number, limit: number): Promise<SearchResult>
+  searchListings(filters: SearchFilters, page: number, limit?: number): Promise<SearchResult>
 
   /** Fetch a single listing by its MLS listing ID */
   getListing(listingId: string): Promise<Property | null>

@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
     })
 
     const adapter = getMLSAdapter()
-    const result = await adapter.searchListings(filters, q.page, q.limit ?? undefined)
+    const result = await adapter.searchListings(filters, q.page, q.limit)
 
     return NextResponse.json(result)
   } catch (err) {
