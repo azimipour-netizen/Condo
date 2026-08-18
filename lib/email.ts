@@ -114,7 +114,6 @@ interface SendOptions {
 
 export async function sendEmail(opts: SendOptions): Promise<void> {
   const key = process.env.RESEND_API_KEY
-  console.log(`[EMAIL] key present=${!!key} keyLength=${key?.length ?? 0}`)
   if (!key || key.length < 5) return
   const resend = new Resend(key)
   await resend.emails.send({ from: FROM, ...opts })

@@ -11,7 +11,6 @@ export async function POST(req: NextRequest) {
   if (!email) return NextResponse.json({ ok: true }) // don't leak existence
 
   const user = await (db as any).user.findUnique({ where: { email: email.toLowerCase() } })
-  console.log(`[FORGOT-PASSWORD] email=${email.toLowerCase()} found=${!!user}`)
   if (!user) return NextResponse.json({ ok: true })
 
   // Invalidate old tokens
@@ -26,10 +25,7 @@ export async function POST(req: NextRequest) {
   const resetUrl = `${appUrl}/reset-password?token=${token}`
 
   const tmpl = emailResetPassword(user.name ?? 'there', resetUrl)
-  console.log(`[FORGOT-PASSWORD] Sending email to: ${email}`)
-  await sendEmail({ to: email, ...tmpl }).catch((err: unknown) => {
-    console.error('[FORGOT-PASSWORD] sendEmail error:', err)
-  })
+  await sendEmail({ to: email, ...tmpl }).catch(() => {})
 
   // Dev fallback: log reset URL
   if (process.env.NODE_ENV !== 'production') {
