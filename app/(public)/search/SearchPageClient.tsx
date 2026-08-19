@@ -3,8 +3,9 @@
 import { useState, useCallback, useRef, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
+import Image from 'next/image'
 import type { SearchResult, SearchFilters, BoundingBox } from '@/types/search'
-import type { PropertyType } from '@/types/property'
+import type { PropertyType, PropertySummary } from '@/types/property'
 import PropertyCard from '@/components/property/PropertyCard'
 
 const PropertyMap = dynamic(() => import('@/components/map/PropertyMap'), { ssr: false })
@@ -39,6 +40,8 @@ export default function SearchPageClient({ initialResult, initialFilters, initia
   const [query, setQuery] = useState(initialQuery)
   const [loading, setLoading] = useState(false)
   const [activeId, setActiveId] = useState<string | null>(null)
+  const [popupProperty, setPopupProperty] = useState<PropertySummary | null>(null)
+  const resultRef = useRef(initialResult)
 
   // Filter state
   const [filterOpen, setFilterOpen] = useState(false)
@@ -50,7 +53,7 @@ export default function SearchPageClient({ initialResult, initialFilters, initia
   const [hasParking, setHasParking] = useState(false)
 
   // Results panel
-  const [resultsOpen, setResultsOpen] = useState(true)
+  const [resultsOpen, setResultsOpen] = useState(false)
   const [showMobileList, setShowMobileList] = useState(false)
 
   const suppressMapSearch = useRef(false)
@@ -78,6 +81,7 @@ export default function SearchPageClient({ initialResult, initialFilters, initia
       if (res.ok) {
         const data = await res.json()
         setResult(data)
+        resultRef.current = data
         setFilters(nextFilters)
       }
     } finally {
@@ -116,9 +120,12 @@ export default function SearchPageClient({ initialResult, initialFilters, initia
   }, [filters, search])
 
   const handleMarkerClick = useCallback((id: string) => {
-    setActiveId(id)
-    setResultsOpen(true)
-    document.getElementById(`fcard-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    setActiveId(prev => {
+      if (prev === id) { setPopupProperty(null); return null }
+      return id
+    })
+    const prop = resultRef.current.properties.find(p => p.id === id) ?? null
+    setPopupProperty(prop)
   }, [])
 
   const activeFilterCount = useMemo(() => {
@@ -146,6 +153,60 @@ export default function SearchPageClient({ initialResult, initialFilters, initia
           className="w-full h-full"
         />
       </div>
+
+      {/* ── Marker popup card ────────────────────────────────── */}
+      {popupProperty && (
+        <div className="absolute bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-20 w-[min(360px,calc(100vw-2rem))]">
+          <div className="bg-[color:var(--bg-surface)] border border-[color:var(--border)] rounded-2xl shadow-2xl overflow-hidden">
+            <div className="flex gap-3 p-3">
+              {/* Thumbnail */}
+              {popupProperty.thumbnail && (
+                <Link href={`/property/${popupProperty.id}`} className="shrink-0">
+                  <div className="relative w-20 h-20 rounded-xl overflow-hidden bg-[color:var(--bg-surface-2)]">
+                    <Image src={popupProperty.thumbnail} alt={popupProperty.title} fill className="object-cover" sizes="80px" />
+                  </div>
+                </Link>
+              )}
+              {/* Info */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between gap-1 mb-1">
+                  <Link href={`/property/${popupProperty.id}`}>
+                    <p className="text-base font-bold text-[color:var(--foreground)]">${popupProperty.price.toLocaleString()}</p>
+                  </Link>
+                  <button
+                    onClick={() => { setPopupProperty(null); setActiveId(null) }}
+                    className="shrink-0 w-6 h-6 flex items-center justify-center rounded-full text-[color:var(--text-faint)] hover:bg-[color:var(--bg-surface-2)] transition-colors"
+                  >
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                      <path d="M1.5 1.5L8.5 8.5M8.5 1.5L1.5 8.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                    </svg>
+                  </button>
+                </div>
+                {popupProperty.location.address && (
+                  <p className="text-xs font-medium text-[color:var(--foreground)] truncate">{popupProperty.location.address}</p>
+                )}
+                <p className="text-xs text-[color:var(--text-muted)] truncate">
+                  {[popupProperty.location.neighbourhood, popupProperty.location.city].filter(Boolean).join(', ')}
+                </p>
+                <div className="flex items-center gap-2 mt-1.5 text-xs text-[color:var(--text-muted)]">
+                  <span>{popupProperty.bedrooms} bd</span>
+                  <span>·</span>
+                  <span>{popupProperty.bathroomsTotal} ba</span>
+                  {popupProperty.sqft && <><span>·</span><span>{popupProperty.sqft.toLocaleString()} sqft</span></>}
+                </div>
+              </div>
+            </div>
+            <div className="px-3 pb-3">
+              <Link
+                href={`/property/${popupProperty.id}`}
+                className="block w-full text-center text-xs font-semibold bg-[color:var(--accent)] text-white py-2 rounded-xl hover:bg-[color:var(--accent-hover)] transition-colors"
+              >
+                View listing
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Floating top bar ─────────────────────────────────── */}
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 w-[min(680px,calc(100vw-2rem))]">
