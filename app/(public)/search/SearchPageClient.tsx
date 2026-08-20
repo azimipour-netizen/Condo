@@ -7,8 +7,21 @@ import Image from 'next/image'
 import type { SearchResult, SearchFilters, BoundingBox } from '@/types/search'
 import type { PropertyType, PropertySummary } from '@/types/property'
 import PropertyCard from '@/components/property/PropertyCard'
+import type { MapPin } from '@/components/map/PropertyMap'
 
 const PropertyMap = dynamic(() => import('@/components/map/PropertyMap'), { ssr: false })
+
+interface PopupData {
+  id: string       // DB UUID (for marker keying)
+  listingId: string // AMPRE key (for /property/[id] route)
+  price: number
+  bedrooms: number
+  bathroomsTotal: number
+  sqft: number | null
+  thumbnail: string | null
+  title: string
+  location: { address: string | null; neighbourhood: string | null; city: string }
+}
 
 interface Props {
   initialResult: SearchResult
@@ -40,8 +53,10 @@ export default function SearchPageClient({ initialResult, initialFilters, initia
   const [query, setQuery] = useState(initialQuery)
   const [loading, setLoading] = useState(false)
   const [activeId, setActiveId] = useState<string | null>(null)
-  const [popupProperty, setPopupProperty] = useState<PropertySummary | null>(null)
+  const [popupProperty, setPopupProperty] = useState<PopupData | null>(null)
+  const [mapPins, setMapPins] = useState<MapPin[]>([])
   const resultRef = useRef(initialResult)
+  const mapPinsRef = useRef<MapPin[]>([])
 
   // Filter state
   const [filterOpen, setFilterOpen] = useState(false)
@@ -114,18 +129,77 @@ export default function SearchPageClient({ initialResult, initialFilters, initia
     setPropTypes(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t])
   }
 
+  const fetchMapPins = useCallback(async (bbox: BoundingBox, currentFilters: SearchFilters) => {
+    const params = new URLSearchParams({
+      north: String(bbox.north),
+      south: String(bbox.south),
+      east:  String(bbox.east),
+      west:  String(bbox.west),
+    })
+    if (currentFilters.priceMin)     params.set('priceMin',     String(currentFilters.priceMin))
+    if (currentFilters.priceMax)     params.set('priceMax',     String(currentFilters.priceMax))
+    if (currentFilters.bedroomsMin)  params.set('bedroomsMin',  String(currentFilters.bedroomsMin))
+    if (currentFilters.bathroomsMin) params.set('bathroomsMin', String(currentFilters.bathroomsMin))
+    if (currentFilters.propertyTypes?.[0]) params.set('propertyType', currentFilters.propertyTypes[0])
+    try {
+      const res = await fetch(`/api/properties/map-pins?${params}`)
+      if (res.ok) {
+        const pins: MapPin[] = await res.json()
+        setMapPins(pins)
+        mapPinsRef.current = pins
+      }
+    } catch { /* non-fatal — falls back to AMPRE pins */ }
+  }, [])
+
   const handleBoundsChange = useCallback((bbox: BoundingBox) => {
     if (suppressMapSearch.current) return
+    fetchMapPins(bbox, filters)
     search({ ...filters, location: { type: 'bbox', bbox }, bbox })
-  }, [filters, search])
+  }, [filters, search, fetchMapPins])
 
   const handleMarkerClick = useCallback((id: string) => {
     setActiveId(prev => {
       if (prev === id) { setPopupProperty(null); return null }
       return id
     })
-    const prop = resultRef.current.properties.find(p => p.id === id) ?? null
-    setPopupProperty(prop)
+    // Prefer DB pin data (has coords for thousands of props), fall back to AMPRE result
+    const pin = mapPinsRef.current.find(p => p.id === id)
+    if (pin) {
+      setPopupProperty({
+        id:       pin.id,
+        listingId: pin.listingId,
+        price: pin.price,
+        bedrooms:       pin.bedrooms,
+        bathroomsTotal: pin.bathroomsTotal,
+        sqft:           pin.sqft,
+        thumbnail:      pin.thumbnail,
+        title:          pin.address ?? pin.city,
+        location: {
+          address:       pin.address,
+          neighbourhood: pin.neighbourhood,
+          city:          pin.city,
+        },
+      })
+      return
+    }
+    const prop = resultRef.current.properties.find(p => p.id === id)
+    if (prop) {
+      setPopupProperty({
+        id:        prop.id,
+        listingId: prop.id, // AMPRE: PropertySummary.id IS the listingKey
+        price: prop.price,
+        bedrooms:       prop.bedrooms,
+        bathroomsTotal: prop.bathroomsTotal,
+        sqft:           prop.sqft ?? null,
+        thumbnail:      prop.thumbnail,
+        title:          prop.title,
+        location: {
+          address:       prop.location.address ?? null,
+          neighbourhood: prop.location.neighbourhood ?? null,
+          city:          prop.location.city,
+        },
+      })
+    }
   }, [])
 
   const activeFilterCount = useMemo(() => {
@@ -147,6 +221,7 @@ export default function SearchPageClient({ initialResult, initialFilters, initia
       <div className={`absolute inset-0 ${showMobileList ? 'hidden md:block' : 'block'}`}>
         <PropertyMap
           properties={result.properties}
+          mapPins={mapPins.length > 0 ? mapPins : undefined}
           activeId={activeId}
           onMarkerClick={handleMarkerClick}
           onBoundsChange={handleBoundsChange}
@@ -161,7 +236,7 @@ export default function SearchPageClient({ initialResult, initialFilters, initia
             <div className="flex gap-3 p-3">
               {/* Thumbnail */}
               {popupProperty.thumbnail && (
-                <Link href={`/property/${popupProperty.id}`} className="shrink-0">
+                <Link href={`/property/${popupProperty.listingId}`} className="shrink-0">
                   <div className="relative w-20 h-20 rounded-xl overflow-hidden bg-[color:var(--bg-surface-2)]">
                     <Image src={popupProperty.thumbnail} alt={popupProperty.title} fill className="object-cover" sizes="80px" />
                   </div>
@@ -170,7 +245,7 @@ export default function SearchPageClient({ initialResult, initialFilters, initia
               {/* Info */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-start justify-between gap-1 mb-1">
-                  <Link href={`/property/${popupProperty.id}`}>
+                  <Link href={`/property/${popupProperty.listingId}`}>
                     <p className="text-base font-bold text-[color:var(--foreground)]">${popupProperty.price.toLocaleString()}</p>
                   </Link>
                   <button
@@ -198,7 +273,7 @@ export default function SearchPageClient({ initialResult, initialFilters, initia
             </div>
             <div className="px-3 pb-3">
               <Link
-                href={`/property/${popupProperty.id}`}
+                href={`/property/${popupProperty.listingId}`}
                 className="block w-full text-center text-xs font-semibold bg-[color:var(--accent)] text-white py-2 rounded-xl hover:bg-[color:var(--accent-hover)] transition-colors"
               >
                 View listing

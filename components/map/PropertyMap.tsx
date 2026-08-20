@@ -5,8 +5,24 @@ import { MarkerClusterer, SuperClusterAlgorithm } from '@googlemaps/markercluste
 import type { PropertySummary } from '@/types/property'
 import type { BoundingBox } from '@/types/search'
 
+export interface MapPin {
+  id: string
+  listingId: string
+  lat: number
+  lng: number
+  price: number
+  bedrooms: number
+  bathroomsTotal: number
+  sqft: number | null
+  address: string | null
+  neighbourhood: string | null
+  city: string
+  thumbnail: string | null
+}
+
 interface Props {
   properties: PropertySummary[]
+  mapPins?: MapPin[]
   activeId?: string | null
   onMarkerClick?: (id: string) => void
   onBoundsChange?: (bbox: BoundingBox) => void
@@ -64,7 +80,7 @@ function makeMarkerEl(price: number, active: boolean): HTMLDivElement {
   return el
 }
 
-export default function PropertyMap({ properties, activeId, onMarkerClick, onBoundsChange, className }: Props) {
+export default function PropertyMap({ properties, mapPins, activeId, onMarkerClick, onBoundsChange, className }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<google.maps.Map | null>(null)
   const markersRef = useRef<Map<string, google.maps.marker.AdvancedMarkerElement>>(new Map())
@@ -113,7 +129,7 @@ export default function PropertyMap({ properties, activeId, onMarkerClick, onBou
           })
         }
 
-        buildMarkers(map, AdvancedMarkerElement, properties, activeId ?? null, onMarkerClick)
+        buildMarkers(map, AdvancedMarkerElement, properties, activeId ?? null, onMarkerClick, mapPins)
       }
     )
 
@@ -134,6 +150,7 @@ export default function PropertyMap({ properties, activeId, onMarkerClick, onBou
     props: PropertySummary[],
     active: string | null,
     onClick?: (id: string) => void,
+    pins?: MapPin[],
   ) {
     clustererRef.current?.clearMarkers()
     markersRef.current.forEach(m => { m.map = null })
@@ -143,9 +160,22 @@ export default function PropertyMap({ properties, activeId, onMarkerClick, onBou
     const bounds = new google.maps.LatLngBounds()
     let hasPos = false
 
-    for (const p of props) {
-      if (p.location.latitude == null || p.location.longitude == null) continue
-      const pos = { lat: Number(p.location.latitude), lng: Number(p.location.longitude) }
+    // Use cached DB pins when available (thousands of markers), fall back to AMPRE results
+    const items: Array<{ id: string; price: number; lat: number; lng: number; title: string }> =
+      pins && pins.length > 0
+        ? pins.map(p => ({ id: p.id, price: p.price, lat: p.lat, lng: p.lng, title: p.address ?? p.city }))
+        : props
+            .filter(p => p.location.latitude != null && p.location.longitude != null)
+            .map(p => ({
+              id:    p.id,
+              price: p.price,
+              lat:   Number(p.location.latitude),
+              lng:   Number(p.location.longitude),
+              title: p.title,
+            }))
+
+    for (const p of items) {
+      const pos = { lat: p.lat, lng: p.lng }
       bounds.extend(pos)
       hasPos = true
 
@@ -191,10 +221,10 @@ export default function PropertyMap({ properties, activeId, onMarkerClick, onBou
     if (!mapRef.current || !initRef.current) return
     google.maps.importLibrary('marker').then((lib) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      buildMarkers(mapRef.current!, (lib as any).AdvancedMarkerElement, properties, activeId ?? null, onMarkerClick)
+      buildMarkers(mapRef.current!, (lib as any).AdvancedMarkerElement, properties, activeId ?? null, onMarkerClick, mapPins)
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [properties])
+  }, [properties, mapPins])
 
   // Sync active highlight without rebuilding markers
   useEffect(() => {
