@@ -332,14 +332,24 @@ export class PropTxAdapter implements IMLSAdapter {
 
   async getUpdatedListings(since: Date): Promise<Property[]> {
     const iso = since.toISOString()
-    const data = await reso<{ value: unknown[] }>('Property', {
-      $filter:  `ModificationTimestamp gt ${iso}`,
-      $expand:  'Media',
-      $top:     '500',
-      $orderby: 'ModificationTimestamp asc',
-    })
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return data.value.map((r: any) => normalize(r))
+    const PAGE_SIZE = 100
+    const all: Property[] = []
+    let skip = 0
+    while (true) {
+      const data = await reso<{ value: unknown[] }>('Property', {
+        $filter:  `ModificationTimestamp gt ${iso}`,
+        $expand:  'Media($top=1)',
+        $top:     String(PAGE_SIZE),
+        $skip:    String(skip),
+        $orderby: 'ModificationTimestamp asc',
+      })
+      const batch = data.value ?? []
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      all.push(...batch.map((r: any) => normalize(r)))
+      if (batch.length < PAGE_SIZE) break
+      skip += PAGE_SIZE
+    }
+    return all
   }
 
   async ping(): Promise<boolean> {
