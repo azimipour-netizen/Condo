@@ -1,9 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { appendFileSync } from 'fs'
 import { syncAll, syncIncremental } from '@/lib/mls/sync'
 
 const SECRET = process.env.CRON_SECRET ?? ''
+const LOG_FILE = '/home/ubuntu/sync.log'
 
-export const maxDuration = 300 // 5 min (Node runtime on VPS — no hard limit)
+export const maxDuration = 300
+
+function fileLog(msg: string) {
+  const line = `${new Date().toISOString()} ${msg}\n`
+  process.stdout.write(line)
+  try { appendFileSync(LOG_FILE, line) } catch {}
+}
 
 export async function POST(req: NextRequest) {
   const auth = req.headers.get('authorization') ?? ''
@@ -15,18 +23,12 @@ export async function POST(req: NextRequest) {
   const mode = searchParams.get('mode') ?? 'incremental'
   const sinceHours = Number(searchParams.get('hours') ?? '25')
 
-  // Run in background — respond immediately so curl doesn't time out
-  const logs: string[] = []
-  const log = (msg: string) => { logs.push(msg); console.log(msg) }
-
   if (mode === 'full') {
-    // Fire-and-forget — logs go to PM2 stdout
-    setImmediate(() => syncAll(log).catch(console.error))
+    setImmediate(() => syncAll(fileLog).catch(err => fileLog(`[sync] ERROR: ${err}`)))
     return NextResponse.json({ started: true, mode: 'full' })
   }
 
-  // Incremental: short enough to await
   const since = new Date(Date.now() - sinceHours * 60 * 60 * 1000)
-  setImmediate(() => syncIncremental(since, log).catch(console.error))
+  setImmediate(() => syncIncremental(since, fileLog).catch(err => fileLog(`[sync] ERROR: ${err}`)))
   return NextResponse.json({ started: true, mode: 'incremental', since: since.toISOString() })
 }

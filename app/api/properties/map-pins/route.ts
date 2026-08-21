@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
           take:     1,
         },
       },
-      take:    3000,
+      take:    10000,
       orderBy: { listedAt: 'desc' },
     })
 
