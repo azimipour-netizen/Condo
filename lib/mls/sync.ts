@@ -6,27 +6,40 @@ function toDbType(t: string): string {
   return t.replace('-', '_') // semi-detached → semi_detached
 }
 
+function safeNum(v: unknown, max: number): number {
+  const n = Number(v)
+  if (!isFinite(n) || n < 0) return 0
+  return Math.min(n, max)
+}
+
+function safeLatLng(v: unknown, max: number): number | null {
+  const n = Number(v)
+  if (!isFinite(n)) return null
+  if (Math.abs(n) > max) return null
+  return n
+}
+
 function propertyToDb(p: PropertySummary) {
   return {
     providerId: 'proptx',
     listingId:  p.id,
     status:     p.status as string,
-    price:      p.price,
+    price:      safeNum(p.price, 9_999_999_999),
     propertyType:   toDbType(p.propertyType) as string,
-    bedrooms:       p.bedrooms,
-    bathroomsTotal: p.bathroomsTotal,
-    parkingSpaces:  p.parkingSpaces,
-    sqft:           p.sqft ?? null,
+    bedrooms:       safeNum(p.bedrooms, 99),
+    bathroomsTotal: safeNum(p.bathroomsTotal, 99.9),
+    parkingSpaces:  safeNum(p.parkingSpaces, 999),
+    sqft:           p.sqft != null ? safeNum(p.sqft, 2_147_483_647) : null,
     lotSize:        p.lotSize ?? null,
     yearBuilt:      p.yearBuilt ?? null,
-    maintenanceFee: p.maintenanceFee ?? null,
-    taxes:          p.taxes ?? null,
+    maintenanceFee: p.maintenanceFee != null ? safeNum(p.maintenanceFee, 99_999_999) : null,
+    taxes:          p.taxes != null ? safeNum(p.taxes, 99_999_999) : null,
     transactionType: p.transactionType,
     title:       p.title,
     description: p.description ?? '',
     features:    p.features ?? [],
-    latitude:    p.location.latitude,
-    longitude:   p.location.longitude,
+    latitude:    p.location.latitude  != null ? safeLatLng(p.location.latitude,  90)  : null,
+    longitude:   p.location.longitude != null ? safeLatLng(p.location.longitude, 180) : null,
     displayMode: 'approximate' as string,
     address:      p.location.address ?? null,
     neighbourhood: p.location.neighbourhood ?? null,
@@ -39,21 +52,28 @@ function propertyToDb(p: PropertySummary) {
 }
 
 async function upsertBatch(properties: PropertySummary[]) {
+  let skipped = 0
   for (const p of properties) {
-    const dbProp = await (db as any).property.upsert({
-      where:  { listingId: p.id },
-      create: propertyToDb(p),
-      update: propertyToDb(p),
-      select: { id: true },
-    })
-
-    if (p.thumbnail) {
-      await (db as any).propertyImage.deleteMany({ where: { propertyId: dbProp.id, order: 0 } })
-      await (db as any).propertyImage.create({
-        data: { propertyId: dbProp.id, url: p.thumbnail, order: 0 },
+    try {
+      const dbProp = await (db as any).property.upsert({
+        where:  { listingId: p.id },
+        create: propertyToDb(p),
+        update: propertyToDb(p),
+        select: { id: true },
       })
+
+      if (p.thumbnail) {
+        await (db as any).propertyImage.deleteMany({ where: { propertyId: dbProp.id, order: 0 } })
+        await (db as any).propertyImage.create({
+          data: { propertyId: dbProp.id, url: p.thumbnail, order: 0 },
+        })
+      }
+    } catch (err) {
+      skipped++
+      console.warn(`[sync] skip ${p.id}: ${String(err).slice(0, 120)}`)
     }
   }
+  if (skipped > 0) console.warn(`[sync] skipped ${skipped} bad records this batch`)
 }
 
 export async function syncAll(log: (msg: string) => void = console.log): Promise<number> {
