@@ -298,9 +298,12 @@ export class PropTxAdapter implements IMLSAdapter {
     const skip = (page - 1) * effectiveLimit
     const $filter = buildFilter(filters)
 
-    const [data, countData] = await Promise.all([
-      reso<{ value: unknown[] }>('Property', {
+    const data = await reso<{ value: unknown[]; '@odata.count'?: number }>('Property', {
         $filter,
+        // Inline $count returns @odata.count alongside the page. The separate
+        // /Property/$count path is NOT supported by AMPRE — it answers 501
+        // "No processor for interface 'CountEntityCollec'".
+        $count:  'true',
         $top:    String(effectiveLimit),
         $skip:   String(skip),
         // $expand=Media($top=1): fetch only the first photo per listing for thumbnails.
@@ -323,11 +326,11 @@ export class PropTxAdapter implements IMLSAdapter {
           'RoomsTotal','DaysOnMarket',
         ].join(','),
         $orderby: 'ModificationTimestamp desc',
-      }),
-      reso<{ '@odata.count': number }>('Property/$count', { $filter }).catch(() => null),
-    ])
+    })
 
-    const total = countData?.['@odata.count'] ?? data.value.length
+    // Fall back to an offset-derived floor if the feed omits the count, so paging
+    // still advances instead of collapsing to a single page.
+    const total = data['@odata.count'] ?? (skip + data.value.length)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const normalized = data.value.map((r: any) => normalize(r))
 
