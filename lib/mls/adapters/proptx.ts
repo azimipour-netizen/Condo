@@ -21,6 +21,7 @@ const IDX_TOKEN = process.env.MLS_IDX_TOKEN ?? ''
 const VOW_TOKEN = process.env.MLS_VOW_TOKEN ?? ''
 
 const MAX_RETRIES = 5
+const RETRYABLE_STATUS = new Set([500, 502, 503, 504])
 
 function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms))
@@ -53,8 +54,10 @@ async function reso<T>(path: string, params: Record<string, string> = {}, useVow
 
       if (!res.ok) {
         const body = await res.text().catch(() => '')
-        // 4xx (except 429) are permanent — retrying will not help.
-        if (res.status < 500 && res.status !== 429) {
+        // Only genuinely transient statuses are worth a retry. Notably 501 is NOT:
+        // AMPRE answers $count with "no processor for interface", forever.
+        const transient = res.status === 429 || RETRYABLE_STATUS.has(res.status)
+        if (!transient) {
           throw new Error(`PropTx API error: ${res.status} ${path} — ${body.slice(0, 300)}`)
         }
         throw new Error(`PropTx API ${res.status} ${path} — ${body.slice(0, 200)}`)
