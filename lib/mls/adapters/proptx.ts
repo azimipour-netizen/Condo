@@ -20,6 +20,12 @@ const API_URL   = (process.env.MLS_API_URL ?? 'https://query.ampre.ca/odata').re
 const IDX_TOKEN = process.env.MLS_IDX_TOKEN ?? ''
 const VOW_TOKEN = process.env.MLS_VOW_TOKEN ?? ''
 
+const MAX_RETRIES = 5
+
+function sleep(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
 async function reso<T>(path: string, params: Record<string, string> = {}, useVow = false): Promise<T> {
   const token = (useVow && VOW_TOKEN) ? VOW_TOKEN : IDX_TOKEN
 
@@ -28,21 +34,43 @@ async function reso<T>(path: string, params: Record<string, string> = {}, useVow
   // are valid query-string content as-is, so we concatenate without encoding.
   const qs = Object.entries(params).map(([k, v]) => `${k}=${v}`).join('&')
   const rawUrl = `${API_URL}/${path}${qs ? '?' + qs : ''}`
-  const res = await fetch(rawUrl, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: 'application/json',
-      'OData-MaxVersion': '4.0',
-      'OData-Version': '4.0',
-    },
-    next: { revalidate: 300 },
-  })
 
-  if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    throw new Error(`PropTx API error: ${res.status} ${path} — ${body.slice(0, 300)}`)
+  let lastErr: unknown
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      // AbortSignal.timeout guards against a hung socket: undici surfaces those as
+      // "TypeError: terminated", which would otherwise kill a long sync run.
+      const res = await fetch(rawUrl, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/json',
+          'OData-MaxVersion': '4.0',
+          'OData-Version': '4.0',
+        },
+        signal: AbortSignal.timeout(60_000),
+        next: { revalidate: 300 },
+      })
+
+      if (!res.ok) {
+        const body = await res.text().catch(() => '')
+        // 4xx (except 429) are permanent — retrying will not help.
+        if (res.status < 500 && res.status !== 429) {
+          throw new Error(`PropTx API error: ${res.status} ${path} — ${body.slice(0, 300)}`)
+        }
+        throw new Error(`PropTx API ${res.status} ${path} — ${body.slice(0, 200)}`)
+      }
+      return await res.json() as T
+    } catch (err) {
+      lastErr = err
+      const msg = String(err)
+      const permanent = msg.includes('PropTx API error:')
+      if (permanent || attempt === MAX_RETRIES) break
+      const backoff = Math.min(2 ** attempt * 1000, 30_000)
+      console.warn(`[reso] attempt ${attempt}/${MAX_RETRIES} failed (${msg.slice(0, 120)}), retrying in ${backoff}ms`)
+      await sleep(backoff)
+    }
   }
-  return res.json() as Promise<T>
+  throw lastErr
 }
 
 // ─── Field mapping ───────────────────────────────────────────────────────────
@@ -313,6 +341,48 @@ export class PropTxAdapter implements IMLSAdapter {
     })
 
     return { properties, total, page, totalPages: Math.ceil(total / effectiveLimit), appliedFilters: filters }
+  }
+
+  /**
+   * Full-sync page fetch. Unlike searchListings this orders by ListingKey (stable —
+   * a listing modified mid-run does not reshuffle later pages and cause skips) and
+   * skips the $count query, which is dead weight when walking every page anyway.
+   */
+  async getSyncPage(skip: number, limit = 100): Promise<PropertySummary[]> {
+    const data = await reso<{ value: unknown[] }>('Property', {
+      $top:    String(limit),
+      $skip:   String(skip),
+      $expand: 'Media($top=1)',
+      $select: [
+        'ListingKey','StandardStatus','TransactionType',
+        'ListPrice',
+        'PropertyType','PropertySubType',
+        'BedroomsTotal','BedroomsAboveGrade','BedroomsBelowGrade',
+        'BathroomsTotalInteger','ParkingTotal',
+        'BuildingAreaTotal','LotSizeArea','LotSizeUnits',
+        'AssociationFee','TaxAnnualAmount',
+        'UnparsedAddress','StreetNumber','StreetName','StreetSuffix',
+        'City','CityRegion','StateOrProvince','PostalCode',
+        'PublicRemarks',
+        'OriginalEntryTimestamp','ModificationTimestamp',
+        'VirtualTourURLUnbranded','VirtualTourURLBranded',
+        'RoomsTotal','DaysOnMarket',
+      ].join(','),
+      $orderby: 'ListingKey asc',
+    })
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const normalized = data.value.map((r: any) => normalize(r))
+    const coords = await geocodeBatch(
+      normalized.map(p => ({ postalCode: p.location.postalCode, city: p.location.city }))
+    )
+    return normalized.map((p, i) => {
+      if (coords[i]) {
+        p.location.latitude  = coords[i]!.lat
+        p.location.longitude = coords[i]!.lng
+      }
+      return toSummary(p)
+    })
   }
 
   async getListing(id: string): Promise<Property | null> {

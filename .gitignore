@@ -42,3 +42,6 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# MLS sync resume checkpoint
+.sync-checkpoint.json

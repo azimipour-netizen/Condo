@@ -1,3 +1,5 @@
+import { readFileSync, writeFileSync, unlinkSync } from 'fs'
+import { resolve } from 'path'
 import { db } from '@/lib/db'
 import { getMLSAdapter } from '@/lib/mls/adapter'
 import type { PropertySummary } from '@/types/property'
@@ -76,11 +78,33 @@ async function upsertBatch(properties: PropertySummary[]) {
   if (skipped > 0) console.warn(`[sync] skipped ${skipped} bad records this batch`)
 }
 
+const CHECKPOINT = resolve(process.cwd(), '.sync-checkpoint.json')
+
+function readCheckpoint(): { skip: number; total: number } {
+  try {
+    const raw = JSON.parse(readFileSync(CHECKPOINT, 'utf8'))
+    if (typeof raw.skip === 'number' && typeof raw.total === 'number') return raw
+  } catch { /* no checkpoint yet — start from zero */ }
+  return { skip: 0, total: 0 }
+}
+
+function writeCheckpoint(skip: number, total: number) {
+  try {
+    writeFileSync(CHECKPOINT, JSON.stringify({ skip, total, at: new Date().toISOString() }))
+  } catch (err) {
+    console.warn(`[sync] checkpoint write failed: ${err}`)
+  }
+}
+
 export async function syncAll(log: (msg: string) => void = console.log): Promise<number> {
-  const adapter = getMLSAdapter()
+  const adapter = getMLSAdapter() as any
   const PAGE_SIZE = 100
-  let page = 1
-  let total = 0
+
+  // Resume from the last completed page so a crash costs one page, not the whole run.
+  const cp = readCheckpoint()
+  let skip  = cp.skip
+  let total = cp.total
+  if (skip > 0) log(`[sync] resuming at offset ${skip} (${total} already synced)`)
 
   const job = await (db as any).syncJob.create({
     data: { provider: 'proptx', status: 'running' },
@@ -88,28 +112,32 @@ export async function syncAll(log: (msg: string) => void = console.log): Promise
 
   try {
     while (true) {
-      log(`[sync] page ${page}…`)
-      const result = await adapter.searchListings({}, page, PAGE_SIZE)
-      if (result.properties.length === 0) break
+      log(`[sync] offset ${skip}…`)
+      const properties = await adapter.getSyncPage(skip, PAGE_SIZE)
+      if (properties.length === 0) break
 
-      await upsertBatch(result.properties)
-      total += result.properties.length
+      await upsertBatch(properties)
+      total += properties.length
+      skip  += PAGE_SIZE
+      writeCheckpoint(skip, total)
       log(`[sync] upserted ${total} so far`)
 
-      if (result.properties.length < PAGE_SIZE) break
-      page++
+      if (properties.length < PAGE_SIZE) break
     }
 
     await (db as any).syncJob.update({
       where: { id: job.id },
       data: { status: 'completed', recordsSynced: total, completedAt: new Date() },
     })
+    // Full pass complete — clear the checkpoint so the next full run starts fresh.
+    try { unlinkSync(CHECKPOINT) } catch { /* already gone */ }
     log(`[sync] done — ${total} listings`)
   } catch (err) {
     await (db as any).syncJob.update({
       where: { id: job.id },
       data: { status: 'failed', error: String(err), completedAt: new Date() },
     })
+    log(`[sync] failed at offset ${skip} — checkpoint saved, rerun to resume`)
     throw err
   }
 
