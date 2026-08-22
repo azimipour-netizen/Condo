@@ -3,6 +3,7 @@
 import { motion, type Variants } from 'motion/react'
 import { Mail, FileText, ShieldCheck, User } from 'lucide-react'
 import DocAccessToggle from './DocAccessToggle'
+import DeleteUserButton from './DeleteUserButton'
 
 const container: Variants = {
   hidden: {},
@@ -67,7 +68,13 @@ export interface UserRow {
   _count: { uploadedDocuments: number }
 }
 
-export default function UsersGrid({ users }: { users: UserRow[] }) {
+interface GridProps {
+  users: UserRow[]
+  currentUserId?: string | null
+  canDelete?: boolean
+}
+
+export default function UsersGrid({ users, currentUserId, canDelete }: GridProps) {
   const cfg = (role: string) => roleConfig[role as keyof typeof roleConfig] ?? roleConfig.consumer
 
   return (
@@ -147,14 +154,23 @@ export default function UsersGrid({ users }: { users: UserRow[] }) {
                 )}
               </div>
 
-              {isConsumer && (
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-neutral-500 dark:text-neutral-400">
-                    Doc access
-                  </span>
-                  <DocAccessToggle userId={u.id} initialUnlocked={u.documentsUnlocked} />
-                </div>
-              )}
+              <div className="flex items-center gap-3">
+                {isConsumer && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-neutral-500 dark:text-neutral-400">
+                      Doc access
+                    </span>
+                    <DocAccessToggle userId={u.id} initialUnlocked={u.documentsUnlocked} />
+                  </div>
+                )}
+                {canDelete && (
+                  <DeleteUserButton
+                    userId={u.id}
+                    label={u.name ?? u.email}
+                    disabled={u.id === currentUserId}
+                  />
+                )}
+              </div>
             </div>
           </motion.article>
         )

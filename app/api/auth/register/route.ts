@@ -6,19 +6,42 @@ import { db } from '@/lib/db'
 import { notify } from '@/lib/notify'
 import { ratelimit, getIP, rateLimitResponse } from '@/lib/ratelimit'
 import { sendEmail, emailVerifyAddress } from '@/lib/email'
+import { verifyTurnstile } from '@/lib/security/turnstile'
+import { checkSignupEmail } from '@/lib/security/email-guard'
 
 const RegisterSchema = z.object({
   name: z.string().min(2).max(80),
   email: z.string().email(),
   password: z.string().min(8).max(100),
+  turnstileToken: z.string().optional(),
+  // Honeypot: hidden from real users, so anything here is a bot.
+  company: z.string().max(200).optional(),
 })
 
 export async function POST(req: NextRequest) {
-  const rl = ratelimit(`register:${getIP(req)}`, 5, 10 * 60_000)
+  // 3 signups per IP per hour. Real households rarely exceed this; scripted
+  // signup floods always do.
+  const rl = ratelimit(`register:${getIP(req)}`, 3, 60 * 60_000)
   if (!rl.success) return rateLimitResponse(rl.resetAt)
   try {
     const body = await req.json()
-    const { name, email, password } = RegisterSchema.parse(body)
+    const { name, email, password, turnstileToken, company } = RegisterSchema.parse(body)
+
+    // Honeypot tripped — pretend it worked so the bot does not learn to retry.
+    if (company) {
+      console.warn(`[register] honeypot tripped from ${getIP(req)}`)
+      return NextResponse.json({ ok: true })
+    }
+
+    const emailCheck = checkSignupEmail(email)
+    if (!emailCheck.ok) {
+      return NextResponse.json({ error: emailCheck.reason }, { status: 400 })
+    }
+
+    const human = await verifyTurnstile(turnstileToken, getIP(req))
+    if (!human) {
+      return NextResponse.json({ error: 'Verification failed. Please try again.' }, { status: 400 })
+    }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const existing = await (db as any).user.findUnique({ where: { email } })

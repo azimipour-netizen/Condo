@@ -4,6 +4,7 @@ import { useState, FormEvent } from 'react'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Turnstile, { TURNSTILE_ENABLED } from '@/components/security/Turnstile'
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -12,16 +13,25 @@ export default function RegisterPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [turnstileToken, setTurnstileToken] = useState('')
+  // Honeypot: hidden from real users; bots that autofill every field trip it.
+  const [company, setCompany] = useState('')
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setError('')
+
+    if (TURNSTILE_ENABLED && !turnstileToken) {
+      setError('Please complete the verification check.')
+      return
+    }
+
     setLoading(true)
 
     const res = await fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, password }),
+      body: JSON.stringify({ name, email, password, turnstileToken, company }),
     })
 
     if (!res.ok) {
@@ -96,6 +106,21 @@ export default function RegisterPage() {
             >
               {loading ? 'Creating account…' : 'Create account'}
             </button>
+            {/* Honeypot — visually hidden, never shown to real users */}
+            <div aria-hidden="true" className="absolute -left-[9999px] top-0 h-0 w-0 overflow-hidden">
+              <label htmlFor="company">Company</label>
+              <input
+                id="company"
+                name="company"
+                type="text"
+                tabIndex={-1}
+                autoComplete="off"
+                value={company}
+                onChange={e => setCompany(e.target.value)}
+              />
+            </div>
+
+            <Turnstile onVerify={setTurnstileToken} />
           </form>
 
           <p className="text-xs text-[color:var(--text-muted)] text-center mt-6">

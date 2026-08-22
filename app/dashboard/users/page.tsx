@@ -1,3 +1,4 @@
+import { auth } from '@/auth'
 import { db } from '@/lib/db'
 import UsersGrid, { type UserRow } from './UsersGrid'
 
@@ -23,6 +24,7 @@ async function getUsers(): Promise<UserRow[]> {
 }
 
 export default async function UsersPage() {
+  const session = await auth()
   const users = await getUsers()
   const consumers = users.filter(u => u.role === 'consumer')
   const agents = users.filter(u => u.role !== 'consumer')
@@ -39,7 +41,11 @@ export default async function UsersPage() {
       {users.length === 0 ? (
         <div className="text-center py-20 text-[color:var(--text-muted)] text-sm">No users yet.</div>
       ) : (
-        <UsersGrid users={users} />
+        <UsersGrid
+          users={users}
+          currentUserId={session?.user?.id ?? null}
+          canDelete={session?.user?.role === 'admin'}
+        />
       )}
     </div>
   )
