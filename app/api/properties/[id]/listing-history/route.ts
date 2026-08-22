@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { auth } from '@/auth'
 import { ratelimit, getIP, rateLimitResponse } from '@/lib/ratelimit'
 
 const API_URL   = (process.env.MLS_API_URL ?? 'https://query.ampre.ca/odata').replace(/\/$/, '')
@@ -40,13 +41,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const { id } = await params
 
+  // Sold/expired/terminated history comes from the VOW feed, which TRREB rules
+  // restrict to registered users. Anonymous visitors get the IDX view only.
+  const session = await auth()
+  const useVow  = !!VOW_TOKEN && !!session?.user?.id
+
   try {
     // Fetch the current listing to get its address
     const current = await reso<{ value: unknown[] }>('Property', {
       $filter:  `ListingKey eq '${id}'`,
       $select:  'ListingKey,StreetNumber,StreetName,PostalCode,ListPrice,StandardStatus,OriginalEntryTimestamp,ModificationTimestamp,CloseDate',
       $top:     '1',
-    }, !!VOW_TOKEN)
+    }, useVow)
 
     if (!current.value.length) return NextResponse.json([])
 
@@ -76,7 +82,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const $filter = addressParts.join(' and ')
 
     // VOW token sees all statuses; IDX only sees Active
-    const useVow = !!VOW_TOKEN
     const history = await reso<{ value: unknown[] }>('Property', {
       $filter,
       $select:  'ListingKey,ListPrice,StandardStatus,OriginalEntryTimestamp,ModificationTimestamp,CloseDate',

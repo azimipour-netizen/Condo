@@ -127,6 +127,9 @@ model Property {
   yearBuilt       Int?
   maintenanceFee  Decimal?            @db.Decimal(10, 2)
   taxes           Decimal?            @db.Decimal(10, 2)
+  // Sold data comes from the VOW feed and may only be shown to signed-in users.
+  soldPrice       Decimal?            @db.Decimal(12, 2)
+  soldDate        DateTime?
   transactionType String              @default("sale") // "sale" | "lease"
   title           String
   description     String              @db.Text
@@ -162,6 +165,9 @@ model Property {
   // Composite indexes for AVM comparables + neighbourhood stats queries
   @@index([status, propertyType, city])
   @@index([status, city, propertyType, sqft])
+  // Comparable lookups scan recent sales inside a bounding box.
+  @@index([status, soldDate])
+  @@index([status, latitude, longitude, soldDate])
 }
 
 model PropertyImage {

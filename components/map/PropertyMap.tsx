@@ -18,7 +18,11 @@ export interface MapPin {
   neighbourhood: string | null
   city: string
   thumbnail: string | null
+  soldDate?: string | null
+  listingType?: ListingType
 }
+
+export type ListingType = 'sale' | 'lease' | 'sold' 
 
 interface Props {
   properties: PropertySummary[]
@@ -69,6 +73,9 @@ function injectMarkerStyles() {
           transition:transform .15s, border-color .15s, background .15s; }
     .pm:hover,.pm.active { background:#0D9488; color:#fff; border-color:#0D9488; transform:scale(1.08); }
     .pm.active { transform:scale(1.12); z-index:20 !important; }
+    .pm.sold { background:#7C2D12; color:#fff; border-color:#7C2D12; }
+    .pm.sold:hover,.pm.sold.active { background:#9A3412; border-color:#9A3412; }
+    .pm.lease { border-color:#0D9488; color:#0D9488; }
     .cm { background:#0D9488; border:3px solid #fff; border-radius:50%;
           display:flex; align-items:center; justify-content:center;
           font:700 13px/1 -apple-system,system-ui,sans-serif; color:#fff;
@@ -77,10 +84,12 @@ function injectMarkerStyles() {
   document.head.appendChild(s)
 }
 
-function makeMarkerEl(price: number, active: boolean): HTMLDivElement {
+function makeMarkerEl(price: number, active: boolean, kind?: ListingType): HTMLDivElement {
   const el = document.createElement('div')
-  el.className = 'pm' + (active ? ' active' : '')
-  el.textContent = formatPrice(price)
+  const variant = kind && kind !== 'sale' ? ' ' + kind : ''
+  el.className = 'pm' + variant + (active ? ' active' : '')
+  // Lease prices are monthly, so a bare $2K would read as a sale price.
+  el.textContent = kind === 'lease' ? formatPrice(price) + '/mo' : formatPrice(price)
   return el
 }
 
@@ -169,9 +178,9 @@ export default function PropertyMap({ properties, mapPins, activeId, onMarkerCli
     let hasPos = false
 
     // Use cached DB pins when available (thousands of markers), fall back to AMPRE results
-    const items: Array<{ id: string; price: number; lat: number; lng: number; title: string }> =
+    const items: Array<{ id: string; price: number; lat: number; lng: number; title: string; kind?: ListingType }> =
       pins && pins.length > 0
-        ? pins.map(p => ({ id: p.id, price: p.price, lat: p.lat, lng: p.lng, title: p.address ?? p.city }))
+        ? pins.map(p => ({ id: p.id, price: p.price, lat: p.lat, lng: p.lng, title: p.address ?? p.city, kind: p.listingType }))
         : props
             .filter(p => p.location.latitude != null && p.location.longitude != null)
             .map(p => ({
@@ -187,7 +196,7 @@ export default function PropertyMap({ properties, mapPins, activeId, onMarkerCli
       bounds.extend(pos)
       hasPos = true
 
-      const el = makeMarkerEl(p.price, p.id === active)
+      const el = makeMarkerEl(p.price, p.id === active, p.kind)
       const marker = new AME({ map, position: pos, content: el, title: p.title })
       marker.addListener('click', () => onClick?.(p.id))
       markersRef.current.set(p.id, marker)

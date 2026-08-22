@@ -17,11 +17,18 @@ const MAX_ATTEMPTS = 50
 const log = (msg: string) => console.log(`[${new Date().toISOString()}] ${msg}`)
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 
+const MODES = ['full', 'incremental', 'sold'] as const
+type Mode = typeof MODES[number]
+
+// How far back to pull closed sales. The feed only holds ~2 years anyway.
+const SOLD_YEARS = 2
+
 async function main() {
-  const mode = process.argv[2] === 'incremental' ? 'incremental' : 'full'
+  const arg = process.argv[2]
+  const mode: Mode = (MODES as readonly string[]).includes(arg) ? arg as Mode : 'full'
   log(`Starting ${mode} sync...`)
 
-  const { syncAll, syncIncremental } = await import('../lib/mls/sync')
+  const { syncAll, syncIncremental, syncSold } = await import('../lib/mls/sync')
 
   if (mode === 'incremental') {
     const since = new Date(Date.now() - 25 * 60 * 60 * 1000)
@@ -30,9 +37,14 @@ async function main() {
     process.exit(0)
   }
 
+  const since = new Date(Date.now() - SOLD_YEARS * 365 * 24 * 60 * 60 * 1000)
+  const run = mode === 'sold'
+    ? () => syncSold(since, log)
+    : () => syncAll(log)
+
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      const total = await syncAll(log)
+      const total = await run()
       log(`Done. ${total} listings synced.`)
       process.exit(0)
     } catch (err) {

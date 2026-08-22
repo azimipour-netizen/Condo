@@ -31,6 +31,8 @@ export interface SearchFilters {
   sqftMin?: number
   sqftMax?: number
   hasParking?: boolean
+  /** 'sale' (default) or 'lease'. Sold listings are served from the DB, not here. */
+  transactionType?: 'sale' | 'lease'
   preferences?: string[]
 }
 

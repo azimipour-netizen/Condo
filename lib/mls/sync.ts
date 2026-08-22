@@ -138,19 +138,20 @@ async function upsertBatch(properties: PropertySummary[]) {
   if (skipped > 0) console.warn(`[sync] skipped ${skipped} bad records this batch`)
 }
 
-const CHECKPOINT = resolve(process.cwd(), '.sync-checkpoint.json')
+const CHECKPOINT      = resolve(process.cwd(), '.sync-checkpoint.json')
+const SOLD_CHECKPOINT = resolve(process.cwd(), '.sync-sold-checkpoint.json')
 
-function readCheckpoint(): { skip: number; total: number } {
+function readCheckpoint(file = CHECKPOINT): { skip: number; total: number } {
   try {
-    const raw = JSON.parse(readFileSync(CHECKPOINT, 'utf8'))
+    const raw = JSON.parse(readFileSync(file, 'utf8'))
     if (typeof raw.skip === 'number' && typeof raw.total === 'number') return raw
   } catch { /* no checkpoint yet — start from zero */ }
   return { skip: 0, total: 0 }
 }
 
-function writeCheckpoint(skip: number, total: number) {
+function writeCheckpoint(skip: number, total: number, file = CHECKPOINT) {
   try {
-    writeFileSync(CHECKPOINT, JSON.stringify({ skip, total, at: new Date().toISOString() }))
+    writeFileSync(file, JSON.stringify({ skip, total, at: new Date().toISOString() }))
   } catch (err) {
     console.warn(`[sync] checkpoint write failed: ${err}`)
   }
@@ -210,6 +211,109 @@ export async function syncAll(log: (msg: string) => void = console.log): Promise
   }
 
   return total
+}
+
+/**
+ * Pull closed SALE listings from the VOW feed for AVM comparables.
+ * Sold prices are VOW-restricted — gate their display behind login.
+ */
+export async function syncSold(
+  since: Date,
+  log: (msg: string) => void = console.log,
+): Promise<number> {
+  const adapter = getMLSAdapter() as any
+  if (typeof adapter.getSoldPage !== 'function') {
+    throw new Error(`adapter "${adapter.name}" has no getSoldPage — sold sync needs the PropTx VOW feed`)
+  }
+  const PAGE_SIZE = 100
+
+  const cp = readCheckpoint(SOLD_CHECKPOINT)
+  let skip  = cp.skip
+  let total = cp.total
+  if (skip > 0) log(`[sync:sold] resuming at offset ${skip} (${total} already synced)`)
+
+  const known = await (db as any).property.findMany({
+    where:  { postalCode: { not: null }, latitude: { not: null } },
+    select: { postalCode: true, latitude: true, longitude: true },
+    distinct: ['postalCode'],
+  })
+  log(`[sync:sold] geocode cache primed with ${primeGeocodeCache(known)} postal codes`)
+
+  const job = await (db as any).syncJob.create({
+    data: { provider: 'proptx-vow', status: 'running' },
+  })
+
+  try {
+    while (true) {
+      log(`[sync:sold] offset ${skip}…`)
+      const sold: Array<{ summary: PropertySummary; soldPrice: number | null; soldDate: Date | null }> =
+        await adapter.getSoldPage(skip, PAGE_SIZE, since)
+      if (sold.length === 0) break
+
+      await upsertSoldBatch(sold)
+      total += sold.length
+      skip  += PAGE_SIZE
+      writeCheckpoint(skip, total, SOLD_CHECKPOINT)
+      log(`[sync:sold] upserted ${total} so far`)
+
+      if (sold.length < PAGE_SIZE) break
+    }
+
+    await (db as any).syncJob.update({
+      where: { id: job.id },
+      data: { status: 'completed', recordsSynced: total, completedAt: new Date() },
+    })
+    try { unlinkSync(SOLD_CHECKPOINT) } catch { /* already gone */ }
+    log(`[sync:sold] done — ${total} sold listings`)
+  } catch (err) {
+    await (db as any).syncJob.update({
+      where: { id: job.id },
+      data: { status: 'failed', error: String(err), completedAt: new Date() },
+    })
+    log(`[sync:sold] failed at offset ${skip} — checkpoint saved, rerun to resume`)
+    throw err
+  }
+
+  return total
+}
+
+async function upsertSoldBatch(
+  items: Array<{ summary: PropertySummary; soldPrice: number | null; soldDate: Date | null }>,
+) {
+  let skipped = 0
+  let reported = false
+  const queue = [...items]
+
+  async function worker() {
+    while (queue.length > 0) {
+      const item = queue.shift()
+      if (!item) break
+      const { summary, soldPrice, soldDate } = item
+      const data = {
+        ...propertyToDb(summary),
+        status:    'sold' as string,
+        soldPrice: soldPrice != null ? safeNum(soldPrice, 9_999_999_999) : null,
+        soldDate,
+      }
+      try {
+        await (db as any).property.upsert({
+          where:  { listingId: summary.id },
+          create: data,
+          update: data,
+          select: { id: true },
+        })
+      } catch (err) {
+        skipped++
+        if (!reported) {
+          reported = true
+          console.warn(`[sync:sold] FIRST FAILURE ${summary.id}:\n${String(err).slice(0, 1200)}`)
+        }
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: UPSERT_CONCURRENCY }, worker))
+  if (skipped > 0) console.warn(`[sync:sold] skipped ${skipped} bad records this batch`)
 }
 
 export async function syncIncremental(

@@ -27,6 +27,18 @@ export interface RawListing {
   [key: string]: unknown
 }
 
+/**
+ * A closed sale, used as an AVM comparable. Sourced from the VOW feed, so the
+ * sold price is gated behind login — see ComplianceConfig.showSoldPrice.
+ */
+export interface SoldListing {
+  summary: PropertySummary
+  /** ClosePrice — the actual sale price, null when the feed omits it */
+  soldPrice: number | null
+  /** PurchaseContractDate; CloseDate is unreliable in this feed */
+  soldDate: Date | null
+}
+
 /** Compliance rules per MLS provider */
 export interface ComplianceConfig {
   /** Provider name shown in attribution */

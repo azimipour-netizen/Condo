@@ -11,7 +11,7 @@
  *   MLS_VOW_TOKEN     — VOW Bearer token (for authenticated user queries)
  */
 
-import type { IMLSAdapter } from '../types'
+import type { IMLSAdapter, SoldListing } from '../types'
 import type { Property, PropertySummary, PropertyType, PropertyStatus } from '@/types/property'
 import type { SearchFilters, SearchResult } from '@/types/search'
 import { geocodeBatch } from '@/lib/geo/geocode'
@@ -213,8 +213,11 @@ function hasActiveFilters(filters: SearchFilters): boolean {
 }
 
 function buildFilter(filters: SearchFilters): string {
-  // Default to for-sale only — leases are excluded unless a lease filter is added later
-  const parts: string[] = ["StandardStatus eq 'Active'", "not contains(TransactionType,'Lease')"]
+  // Defaults to for-sale; the map's For Rent tab asks for leases explicitly.
+  const parts: string[] = ["StandardStatus eq 'Active'"]
+  parts.push(filters.transactionType === 'lease'
+    ? "contains(TransactionType,'Lease')"
+    : "not contains(TransactionType,'Lease')")
 
   if (filters.priceMin) parts.push(`ListPrice ge ${filters.priceMin}`)
   if (filters.priceMax) parts.push(`ListPrice le ${filters.priceMax}`)
@@ -388,6 +391,61 @@ export class PropTxAdapter implements IMLSAdapter {
         p.location.longitude = coords[i]!.lng
       }
       return toSummary(p)
+    })
+  }
+
+  /**
+   * Sold (Closed) sale listings from the VOW feed, for AVM comparables.
+   *
+   * Two data-quality traps this guards against:
+   *  - CloseDate is unreliable (records carry values like "3549-10-01"), so the
+   *    date window is applied to PurchaseContractDate instead.
+   *  - Closed "For Lease" records report a MONTHLY RENT in ClosePrice. Mixing
+   *    those into comparables would poison any valuation, so sales only.
+   */
+  async getSoldPage(skip: number, limit = 100, since?: Date): Promise<SoldListing[]> {
+    const clauses = [
+      "StandardStatus eq 'Closed'",
+      "TransactionType eq 'For Sale'",
+    ]
+    if (since) clauses.push(`PurchaseContractDate ge ${since.toISOString().slice(0, 10)}`)
+
+    const data = await reso<{ value: unknown[] }>('Property', {
+      $filter:  clauses.join(' and '),
+      $top:     String(limit),
+      $skip:    String(skip),
+      $select: [
+        'ListingKey','StandardStatus','TransactionType',
+        'ClosePrice','ListPrice','PurchaseContractDate','CloseDate',
+        'PropertyType','PropertySubType',
+        'BedroomsTotal','BathroomsTotalInteger','ParkingTotal',
+        'BuildingAreaTotal','LotSizeArea','LotSizeUnits',
+        'UnparsedAddress','City','CityRegion','StateOrProvince','PostalCode',
+        'OriginalEntryTimestamp','ModificationTimestamp',
+      ].join(','),
+      $orderby: 'ListingKey asc',
+    }, true) // VOW token — sold data is not in the IDX feed
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rows = (data.value ?? []) as any[]
+    const normalized = rows.map(r => normalize(r))
+    const coords = await geocodeBatch(
+      normalized.map(p => ({ postalCode: p.location.postalCode, city: p.location.city }))
+    )
+
+    return normalized.map((p, i) => {
+      if (coords[i]) {
+        p.location.latitude  = coords[i]!.lat
+        p.location.longitude = coords[i]!.lng
+      }
+      const raw = rows[i]
+      const soldPrice = Number(raw.ClosePrice)
+      const contract  = raw.PurchaseContractDate ? new Date(raw.PurchaseContractDate) : null
+      return {
+        summary:   toSummary(p),
+        soldPrice: isFinite(soldPrice) && soldPrice > 0 ? soldPrice : null,
+        soldDate:  contract && !isNaN(contract.getTime()) ? contract : null,
+      }
     })
   }
 

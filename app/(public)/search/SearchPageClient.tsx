@@ -7,7 +7,7 @@ import Image from 'next/image'
 import type { SearchResult, SearchFilters, BoundingBox } from '@/types/search'
 import type { PropertyType, PropertySummary } from '@/types/property'
 import PropertyCard from '@/components/property/PropertyCard'
-import type { MapPin } from '@/components/map/PropertyMap'
+import type { MapPin, ListingType } from '@/components/map/PropertyMap'
 
 const PropertyMap = dynamic(() => import('@/components/map/PropertyMap'), { ssr: false })
 
@@ -44,6 +44,12 @@ const PROP_TYPES: { value: PropertyType; label: string }[] = [
   { value: 'condo', label: 'Condo' },
 ]
 
+const LISTING_TABS: { value: ListingType; label: string }[] = [
+  { value: 'sale',  label: 'For Sale' },
+  { value: 'lease', label: 'For Rent' },
+  { value: 'sold',  label: 'Sold' },
+]
+
 const BED_OPTS = [1, 2, 3, 4]
 const BATH_OPTS = [1, 2, 3]
 
@@ -56,8 +62,13 @@ export default function SearchPageClient({ initialResult, initialFilters, initia
   const [popupProperty, setPopupProperty] = useState<PopupData | null>(null)
   const [clusterList, setClusterList] = useState<PopupData[] | null>(null)
   const [mapPins, setMapPins] = useState<MapPin[]>([])
+  const [listingType, setListingType] = useState<ListingType>('sale')
+  const [soldNeedsAuth, setSoldNeedsAuth] = useState(false)
+  const listingTypeRef = useRef<ListingType>('sale')
   const resultRef = useRef(initialResult)
   const mapPinsRef = useRef<MapPin[]>([])
+  // Last viewport, so switching listing type refetches without waiting for a pan.
+  const lastBboxRef = useRef<BoundingBox | null>(null)
 
   // Filter state
   const [filterOpen, setFilterOpen] = useState(false)
@@ -85,6 +96,7 @@ export default function SearchPageClient({ initialResult, initialFilters, initia
       if (nextFilters.bedroomsMin) params.set('bedroomsMin', String(nextFilters.bedroomsMin))
       if (nextFilters.bathroomsMin) params.set('bathroomsMin', String(nextFilters.bathroomsMin))
       if (nextFilters.hasParking) params.set('hasParking', 'true')
+      if (nextFilters.transactionType) params.set('transactionType', nextFilters.transactionType)
       if (nextFilters.propertyTypes?.[0]) params.set('propertyType', nextFilters.propertyTypes[0] as string)
       if (nextFilters.bbox) {
         params.set('north', String(nextFilters.bbox.north))
@@ -130,12 +142,13 @@ export default function SearchPageClient({ initialResult, initialFilters, initia
     setPropTypes(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t])
   }
 
-  const fetchMapPins = useCallback(async (bbox: BoundingBox, currentFilters: SearchFilters) => {
+  const fetchMapPins = useCallback(async (bbox: BoundingBox, currentFilters: SearchFilters, kind: ListingType) => {
     const params = new URLSearchParams({
       north: String(bbox.north),
       south: String(bbox.south),
       east:  String(bbox.east),
       west:  String(bbox.west),
+      listingType: kind,
     })
     if (currentFilters.priceMin)     params.set('priceMin',     String(currentFilters.priceMin))
     if (currentFilters.priceMax)     params.set('priceMax',     String(currentFilters.priceMax))
@@ -145,6 +158,9 @@ export default function SearchPageClient({ initialResult, initialFilters, initia
     try {
       const res = await fetch(`/api/properties/map-pins?${params}`)
       if (res.ok) {
+        // Sold data is VOW-restricted; the API flags anonymous callers instead
+        // of erroring, so the map still renders while we prompt for sign-in.
+        setSoldNeedsAuth(kind === 'sold' && res.headers.get('X-Requires-Auth') === '1')
         const pins: MapPin[] = await res.json()
         setMapPins(pins)
         mapPinsRef.current = pins
@@ -154,9 +170,25 @@ export default function SearchPageClient({ initialResult, initialFilters, initia
 
   const handleBoundsChange = useCallback((bbox: BoundingBox) => {
     if (suppressMapSearch.current) return
-    fetchMapPins(bbox, filters)
+    lastBboxRef.current = bbox
+    fetchMapPins(bbox, filters, listingTypeRef.current)
     search({ ...filters, location: { type: 'bbox', bbox }, bbox })
   }, [filters, search, fetchMapPins])
+
+  const handleListingTypeChange = useCallback((kind: ListingType) => {
+    setListingType(kind)
+    listingTypeRef.current = kind
+    setPopupProperty(null)
+    setClusterList(null)
+    setActiveId(null)
+    const bbox = lastBboxRef.current
+    if (bbox) fetchMapPins(bbox, filters, kind)
+    // Sold listings come from our DB only — AMPRE search has no sold equivalent,
+    // so leave the results panel on its last query rather than clearing it.
+    if (kind !== 'sold') {
+      search({ ...filters, transactionType: kind })
+    }
+  }, [filters, fetchMapPins, search])
 
   // Prefer DB pin data (has coords for thousands of props), fall back to AMPRE result
   const toPopupData = useCallback((id: string): PopupData | null => {
@@ -240,6 +272,42 @@ export default function SearchPageClient({ initialResult, initialFilters, initia
           onBoundsChange={handleBoundsChange}
           className="w-full h-full"
         />
+      </div>
+
+      {/* ── Listing type switch ──────────────────────────────── */}
+      <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20">
+        <div
+          role="tablist"
+          aria-label="Listing type"
+          className="flex items-center gap-0.5 p-1 rounded-full bg-[color:var(--bg-surface)] border border-[color:var(--border)] shadow-lg"
+        >
+          {LISTING_TABS.map(tab => {
+            const selected = listingType === tab.value
+            return (
+              <button
+                key={tab.value}
+                role="tab"
+                aria-selected={selected}
+                onClick={() => handleListingTypeChange(tab.value)}
+                className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+                  selected
+                    ? 'bg-[color:var(--accent)] text-white'
+                    : 'text-[color:var(--text-muted)] hover:bg-[color:var(--bg-surface-2)]'
+                }`}
+              >
+                {tab.label}
+              </button>
+            )
+          })}
+        </div>
+        {soldNeedsAuth && (
+          <div className="mt-2 mx-auto w-max max-w-[min(320px,calc(100vw-2rem))] rounded-xl bg-[color:var(--bg-surface)] border border-[color:var(--border)] shadow-lg px-3 py-2">
+            <p className="text-xs text-[color:var(--text-muted)]">
+              <Link href="/login" className="font-semibold text-[color:var(--accent)] hover:underline">Sign in</Link>
+              {' '}to see sold prices.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* ── Cluster listing list ─────────────────────────────── */}

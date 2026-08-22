@@ -37,6 +37,7 @@ export const SearchFiltersSchema = z.object({
   sqftMin: z.number().min(0).max(50_000).optional(),
   sqftMax: z.number().min(0).max(50_000).optional(),
   hasParking: z.boolean().optional(),
+  transactionType: z.enum(['sale', 'lease']).optional(),
   preferences: z.array(z.string().max(100)).max(20).optional(),
 })
 

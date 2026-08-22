@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { auth } from '@/auth'
 import { db } from '@/lib/db'
 import { z } from 'zod'
 import { ratelimit, getIP, rateLimitResponse } from '@/lib/ratelimit'
@@ -8,6 +9,8 @@ const QuerySchema = z.object({
   south: z.coerce.number(),
   east:  z.coerce.number(),
   west:  z.coerce.number(),
+  // Which set of listings the map is showing. Defaults to for-sale.
+  listingType:  z.enum(['sale', 'lease', 'sold']).optional(),
   priceMin:     z.coerce.number().optional(),
   priceMax:     z.coerce.number().optional(),
   bedroomsMin:  z.coerce.number().optional(),
@@ -22,13 +25,33 @@ export async function GET(req: NextRequest) {
   try {
     const params = Object.fromEntries(req.nextUrl.searchParams.entries())
     const q = QuerySchema.parse(params)
+    const listingType = q.listingType ?? 'sale'
+
+    // Sold prices come from the VOW feed, which TRREB restricts to registered
+    // users. Anonymous visitors asking for sold get an empty set, not a 401 —
+    // the map should still render while the UI prompts them to sign in.
+    let signedIn = false
+    if (listingType === 'sold') {
+      const session = await auth()
+      signedIn = !!session?.user?.id
+      if (!signedIn) {
+        return NextResponse.json([], {
+          headers: { 'Cache-Control': 'private, no-store', 'X-Requires-Auth': '1' },
+        })
+      }
+    }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const where: any = {
-      status: 'active',
-      transactionType: 'sale',
       latitude:  { gte: q.south, lte: q.north },
       longitude: { gte: q.west,  lte: q.east  },
+    }
+
+    if (listingType === 'sold') {
+      where.status = 'sold'
+    } else {
+      where.status = 'active'
+      where.transactionType = listingType // 'sale' | 'lease'
     }
 
     if (q.priceMin)     where.price      = { ...where.price,      gte: q.priceMin }
@@ -46,6 +69,8 @@ export async function GET(req: NextRequest) {
         latitude:       true,
         longitude:      true,
         price:          true,
+        soldPrice:      true,
+        soldDate:       true,
         bedrooms:       true,
         bathroomsTotal: true,
         sqft:           true,
@@ -59,15 +84,20 @@ export async function GET(req: NextRequest) {
         },
       },
       take:    10000,
-      orderBy: { listedAt: 'desc' },
+      orderBy: listingType === 'sold' ? { soldDate: 'desc' } : { listedAt: 'desc' },
     })
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pins = rows.map((r: any) => ({
       id:             r.id,
       listingId:      r.listingId,
       lat:            Number(r.latitude),
       lng:            Number(r.longitude),
-      price:          Number(r.price),
+      // A sold pin shows what it actually sold for, falling back to list price
+      // when the feed left ClosePrice empty.
+      price:          Number(listingType === 'sold' ? (r.soldPrice ?? r.price) : r.price),
+      soldDate:       listingType === 'sold' ? (r.soldDate ?? null) : null,
+      listingType,
       bedrooms:       r.bedrooms,
       bathroomsTotal: Number(r.bathroomsTotal),
       sqft:           r.sqft ?? null,
@@ -78,7 +108,9 @@ export async function GET(req: NextRequest) {
     }))
 
     return NextResponse.json(pins, {
-      headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300' },
+      headers: listingType === 'sold'
+        ? { 'Cache-Control': 'private, no-store' }
+        : { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300' },
     })
   } catch (err) {
     if (err instanceof z.ZodError) {
