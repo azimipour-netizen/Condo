@@ -25,9 +25,13 @@ interface Props {
   mapPins?: MapPin[]
   activeId?: string | null
   onMarkerClick?: (id: string) => void
+  onClusterClick?: (ids: string[]) => void
   onBoundsChange?: (bbox: BoundingBox) => void
   className?: string
 }
+
+// Above this size a cluster is still too coarse to list — zoom in instead.
+const CLUSTER_LIST_MAX = 50
 
 const GTA_CENTER = { lat: 43.7, lng: -79.42 }
 const MAP_ID = process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID ?? 'DEMO_MAP_ID'
@@ -80,10 +84,14 @@ function makeMarkerEl(price: number, active: boolean): HTMLDivElement {
   return el
 }
 
-export default function PropertyMap({ properties, mapPins, activeId, onMarkerClick, onBoundsChange, className }: Props) {
+export default function PropertyMap({ properties, mapPins, activeId, onMarkerClick, onClusterClick, onBoundsChange, className }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<google.maps.Map | null>(null)
   const markersRef = useRef<Map<string, google.maps.marker.AdvancedMarkerElement>>(new Map())
+  // Reverse lookup so a cluster can report which listings it contains.
+  const markerIdRef = useRef<WeakMap<object, string>>(new WeakMap())
+  const onClusterClickRef = useRef(onClusterClick)
+  onClusterClickRef.current = onClusterClick
   const clustererRef = useRef<MarkerClusterer | null>(null)
   const initRef = useRef(false)
   const fittedRef = useRef(false)
@@ -183,6 +191,7 @@ export default function PropertyMap({ properties, mapPins, activeId, onMarkerCli
       const marker = new AME({ map, position: pos, content: el, title: p.title })
       marker.addListener('click', () => onClick?.(p.id))
       markersRef.current.set(p.id, marker)
+      markerIdRef.current.set(marker, p.id)
       newMarkers.push(marker)
     }
 
@@ -191,6 +200,20 @@ export default function PropertyMap({ properties, mapPins, activeId, onMarkerCli
         map,
         markers: newMarkers,
         algorithm: new SuperClusterAlgorithm({ radius: 60, maxZoom: 14 }),
+        // Default behaviour just zooms to the cluster bounds. For a cluster small
+        // enough to read, list its listings instead — zooming into a stack of units
+        // at one address never separates them.
+        onClusterClick: (event, cluster, clusterMap) => {
+          const ids = (cluster.markers ?? [])
+            .map(m => markerIdRef.current.get(m as object))
+            .filter((id): id is string => typeof id === 'string')
+
+          if (onClusterClickRef.current && ids.length > 0 && ids.length <= CLUSTER_LIST_MAX) {
+            onClusterClickRef.current(ids)
+            return
+          }
+          if (cluster.bounds) clusterMap.fitBounds(cluster.bounds, 60)
+        },
         renderer: {
           render({ count, position }) {
             const size = Math.min(44 + count * 2, 64)

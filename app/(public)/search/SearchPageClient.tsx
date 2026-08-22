@@ -54,6 +54,7 @@ export default function SearchPageClient({ initialResult, initialFilters, initia
   const [loading, setLoading] = useState(false)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [popupProperty, setPopupProperty] = useState<PopupData | null>(null)
+  const [clusterList, setClusterList] = useState<PopupData[] | null>(null)
   const [mapPins, setMapPins] = useState<MapPin[]>([])
   const resultRef = useRef(initialResult)
   const mapPinsRef = useRef<MapPin[]>([])
@@ -157,18 +158,14 @@ export default function SearchPageClient({ initialResult, initialFilters, initia
     search({ ...filters, location: { type: 'bbox', bbox }, bbox })
   }, [filters, search, fetchMapPins])
 
-  const handleMarkerClick = useCallback((id: string) => {
-    setActiveId(prev => {
-      if (prev === id) { setPopupProperty(null); return null }
-      return id
-    })
-    // Prefer DB pin data (has coords for thousands of props), fall back to AMPRE result
+  // Prefer DB pin data (has coords for thousands of props), fall back to AMPRE result
+  const toPopupData = useCallback((id: string): PopupData | null => {
     const pin = mapPinsRef.current.find(p => p.id === id)
     if (pin) {
-      setPopupProperty({
-        id:       pin.id,
+      return {
+        id:        pin.id,
         listingId: pin.listingId,
-        price: pin.price,
+        price:          pin.price,
         bedrooms:       pin.bedrooms,
         bathroomsTotal: pin.bathroomsTotal,
         sqft:           pin.sqft,
@@ -179,28 +176,43 @@ export default function SearchPageClient({ initialResult, initialFilters, initia
           neighbourhood: pin.neighbourhood,
           city:          pin.city,
         },
-      })
-      return
+      }
     }
     const prop = resultRef.current.properties.find(p => p.id === id)
-    if (prop) {
-      setPopupProperty({
-        id:        prop.id,
-        listingId: prop.id, // AMPRE: PropertySummary.id IS the listingKey
-        price: prop.price,
-        bedrooms:       prop.bedrooms,
-        bathroomsTotal: prop.bathroomsTotal,
-        sqft:           prop.sqft ?? null,
-        thumbnail:      prop.thumbnail,
-        title:          prop.title,
-        location: {
-          address:       prop.location.address ?? null,
-          neighbourhood: prop.location.neighbourhood ?? null,
-          city:          prop.location.city,
-        },
-      })
+    if (!prop) return null
+    return {
+      id:        prop.id,
+      listingId: prop.id, // AMPRE: PropertySummary.id IS the listingKey
+      price:          prop.price,
+      bedrooms:       prop.bedrooms,
+      bathroomsTotal: prop.bathroomsTotal,
+      sqft:           prop.sqft ?? null,
+      thumbnail:      prop.thumbnail,
+      title:          prop.title,
+      location: {
+        address:       prop.location.address ?? null,
+        neighbourhood: prop.location.neighbourhood ?? null,
+        city:          prop.location.city,
+      },
     }
   }, [])
+
+  const handleMarkerClick = useCallback((id: string) => {
+    setClusterList(null)
+    setActiveId(prev => {
+      if (prev === id) { setPopupProperty(null); return null }
+      return id
+    })
+    setPopupProperty(toPopupData(id))
+  }, [toPopupData])
+
+  const handleClusterClick = useCallback((ids: string[]) => {
+    const items = ids.map(toPopupData).filter((d): d is PopupData => d !== null)
+    if (items.length === 0) return
+    setPopupProperty(null)
+    setActiveId(null)
+    setClusterList(items)
+  }, [toPopupData])
 
   const activeFilterCount = useMemo(() => {
     let n = 0
@@ -224,10 +236,67 @@ export default function SearchPageClient({ initialResult, initialFilters, initia
           mapPins={mapPins.length > 0 ? mapPins : undefined}
           activeId={activeId}
           onMarkerClick={handleMarkerClick}
+          onClusterClick={handleClusterClick}
           onBoundsChange={handleBoundsChange}
           className="w-full h-full"
         />
       </div>
+
+      {/* ── Cluster listing list ─────────────────────────────── */}
+      {clusterList && (
+        <div className="absolute bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-20 w-[min(380px,calc(100vw-2rem))]">
+          <div className="bg-[color:var(--bg-surface)] border border-[color:var(--border)] rounded-2xl shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-[color:var(--border)]">
+              <p className="text-sm font-semibold text-[color:var(--foreground)]">
+                {clusterList.length} listings here
+              </p>
+              <button
+                onClick={() => setClusterList(null)}
+                aria-label="Close list"
+                className="shrink-0 w-6 h-6 flex items-center justify-center rounded-full text-[color:var(--text-faint)] hover:bg-[color:var(--bg-surface-2)] transition-colors"
+              >
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                  <path d="M1.5 1.5L8.5 8.5M8.5 1.5L1.5 8.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                </svg>
+              </button>
+            </div>
+            <div className="max-h-[min(60vh,420px)] overflow-y-auto divide-y divide-[color:var(--border)]">
+              {clusterList.map(item => (
+                <Link
+                  key={item.id}
+                  href={`/property/${item.listingId}`}
+                  className="flex gap-3 p-3 hover:bg-[color:var(--bg-surface-2)] transition-colors"
+                >
+                  <div className="relative w-16 h-16 shrink-0 rounded-lg overflow-hidden bg-[color:var(--bg-surface-2)]">
+                    {item.thumbnail && (
+                      <Image src={item.thumbnail} alt={item.title} fill className="object-cover" sizes="64px" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-[color:var(--foreground)]">
+                      ${item.price.toLocaleString()}
+                    </p>
+                    {item.location.address && (
+                      <p className="text-xs font-medium text-[color:var(--foreground)] truncate">
+                        {item.location.address}
+                      </p>
+                    )}
+                    <p className="text-xs text-[color:var(--text-muted)] truncate">
+                      {[item.location.neighbourhood, item.location.city].filter(Boolean).join(', ')}
+                    </p>
+                    <div className="flex items-center gap-2 mt-1 text-xs text-[color:var(--text-muted)]">
+                      <span>{item.bedrooms} bd</span>
+                      <span>·</span>
+                      <span>{item.bathroomsTotal} ba</span>
+                      {item.sqft && <><span>·</span><span>{item.sqft.toLocaleString()} sqft</span></>}
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Marker popup card ────────────────────────────────── */}
       {popupProperty && (

@@ -54,22 +54,40 @@ function propertyToDb(p: PropertySummary) {
   }
 }
 
-const UPSERT_CONCURRENCY = 12
+// pg's default pool holds 10 connections; staying under it keeps every worker
+// writing instead of queueing for a socket.
+const UPSERT_CONCURRENCY = 6
 
-async function upsertOne(p: PropertySummary) {
-  const dbProp = await (db as any).property.upsert({
-    where:  { listingId: p.id },
-    create: propertyToDb(p),
-    update: propertyToDb(p),
-    select: { id: true, images: { where: { order: 0 }, select: { url: true } } },
-  })
+async function upsertOne(p: PropertySummary, existingThumb: string | undefined) {
+  const data = propertyToDb(p)
+  let id: string
+
+  try {
+    const row = await (db as any).property.upsert({
+      where:  { listingId: p.id },
+      create: data,
+      update: data,
+      select: { id: true },
+    })
+    id = row.id
+  } catch (err) {
+    // Concurrent workers can both miss on the same listingId and race to insert.
+    // The loser sees a unique-constraint error; the row exists by then, so update.
+    if (!String(err).includes('P2002')) throw err
+    const row = await (db as any).property.update({
+      where:  { listingId: p.id },
+      data,
+      select: { id: true },
+    })
+    id = row.id
+  }
 
   // Only touch PropertyImage when the thumbnail actually changed — the delete+create
   // pair was costing two extra Neon round trips per listing on every single run.
-  if (p.thumbnail && dbProp.images[0]?.url !== p.thumbnail) {
-    await (db as any).propertyImage.deleteMany({ where: { propertyId: dbProp.id, order: 0 } })
+  if (p.thumbnail && existingThumb !== p.thumbnail) {
+    await (db as any).propertyImage.deleteMany({ where: { propertyId: id, order: 0 } })
     await (db as any).propertyImage.create({
-      data: { propertyId: dbProp.id, url: p.thumbnail, order: 0 },
+      data: { propertyId: id, url: p.thumbnail, order: 0 },
     })
   }
 }
@@ -79,6 +97,20 @@ async function upsertBatch(properties: PropertySummary[]) {
   let reported = false
   const queue = [...properties]
 
+  // One read for the whole page instead of a nested relation select per row.
+  const thumbs = new Map<string, string>()
+  try {
+    const rows = await (db as any).property.findMany({
+      where:  { listingId: { in: properties.map(p => p.id) } },
+      select: { listingId: true, images: { where: { order: 0 }, select: { url: true }, take: 1 } },
+    })
+    for (const r of rows) {
+      if (r.images[0]?.url) thumbs.set(r.listingId, r.images[0].url)
+    }
+  } catch (err) {
+    console.warn(`[sync] thumbnail prefetch failed, will rewrite images: ${String(err).slice(0, 120)}`)
+  }
+
   // Neon round trips dominate sync time; running them sequentially left the
   // connection idle between each one. Fan out to a bounded worker pool instead.
   async function worker() {
@@ -86,7 +118,7 @@ async function upsertBatch(properties: PropertySummary[]) {
       const p = queue.shift()
       if (!p) break
       try {
-        await upsertOne(p)
+        await upsertOne(p, thumbs.get(p.id))
       } catch (err) {
         skipped++
         // Print one full error per batch — the truncated form hides which field
