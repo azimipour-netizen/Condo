@@ -50,6 +50,18 @@ const LISTING_TABS: { value: ListingType; label: string }[] = [
   { value: 'sold',  label: 'Sold' },
 ]
 
+// Sold history windows. The AMPRE feed only holds ~2 years, so the 36-month
+// option returns whatever exists rather than a full three years.
+const SOLD_RANGES: { days: number; label: string }[] = [
+  { days: 30,   label: '30 days' },
+  { days: 60,   label: '60 days' },
+  { days: 90,   label: '3 months' },
+  { days: 180,  label: '6 months' },
+  { days: 365,  label: '12 months' },
+  { days: 730,  label: '24 months' },
+  { days: 1095, label: '36 months' },
+]
+
 const BED_OPTS = [1, 2, 3, 4]
 const BATH_OPTS = [1, 2, 3]
 
@@ -64,6 +76,8 @@ export default function SearchPageClient({ initialResult, initialFilters, initia
   const [mapPins, setMapPins] = useState<MapPin[]>([])
   const [listingType, setListingType] = useState<ListingType>('sale')
   const [soldNeedsAuth, setSoldNeedsAuth] = useState(false)
+  const [soldDays, setSoldDays] = useState(30)
+  const soldDaysRef = useRef(30)
   const listingTypeRef = useRef<ListingType>('sale')
   const resultRef = useRef(initialResult)
   const mapPinsRef = useRef<MapPin[]>([])
@@ -142,7 +156,7 @@ export default function SearchPageClient({ initialResult, initialFilters, initia
     setPropTypes(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t])
   }
 
-  const fetchMapPins = useCallback(async (bbox: BoundingBox, currentFilters: SearchFilters, kind: ListingType) => {
+  const fetchMapPins = useCallback(async (bbox: BoundingBox, currentFilters: SearchFilters, kind: ListingType, days = soldDaysRef.current) => {
     const params = new URLSearchParams({
       north: String(bbox.north),
       south: String(bbox.south),
@@ -150,6 +164,7 @@ export default function SearchPageClient({ initialResult, initialFilters, initia
       west:  String(bbox.west),
       listingType: kind,
     })
+    if (kind === 'sold') params.set('soldWithinDays', String(days))
     if (currentFilters.priceMin)     params.set('priceMin',     String(currentFilters.priceMin))
     if (currentFilters.priceMax)     params.set('priceMax',     String(currentFilters.priceMax))
     if (currentFilters.bedroomsMin)  params.set('bedroomsMin',  String(currentFilters.bedroomsMin))
@@ -189,6 +204,16 @@ export default function SearchPageClient({ initialResult, initialFilters, initia
       search({ ...filters, transactionType: kind })
     }
   }, [filters, fetchMapPins, search])
+
+  const handleSoldRangeChange = useCallback((days: number) => {
+    setSoldDays(days)
+    soldDaysRef.current = days
+    setPopupProperty(null)
+    setClusterList(null)
+    setActiveId(null)
+    const bbox = lastBboxRef.current
+    if (bbox) fetchMapPins(bbox, filters, 'sold', days)
+  }, [filters, fetchMapPins])
 
   // Prefer DB pin data (has coords for thousands of props), fall back to AMPRE result
   const toPopupData = useCallback((id: string): PopupData | null => {
@@ -300,6 +325,27 @@ export default function SearchPageClient({ initialResult, initialFilters, initia
             )
           })}
         </div>
+        {listingType === 'sold' && !soldNeedsAuth && (
+          <div className="mt-2 flex justify-center">
+            <div className="flex items-center gap-1 px-1.5 py-1 rounded-full bg-[color:var(--bg-surface)] border border-[color:var(--border)] shadow-lg overflow-x-auto max-w-[calc(100vw-2rem)]">
+              <span className="px-2 text-[11px] font-medium text-[color:var(--text-faint)] whitespace-nowrap">Sold in</span>
+              {SOLD_RANGES.map(r => (
+                <button
+                  key={r.days}
+                  onClick={() => handleSoldRangeChange(r.days)}
+                  aria-pressed={soldDays === r.days}
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap transition-colors ${
+                    soldDays === r.days
+                      ? 'bg-[color:var(--accent)] text-white'
+                      : 'text-[color:var(--text-muted)] hover:bg-[color:var(--bg-surface-2)]'
+                  }`}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         {soldNeedsAuth && (
           <div className="mt-2 mx-auto w-max max-w-[min(320px,calc(100vw-2rem))] rounded-xl bg-[color:var(--bg-surface)] border border-[color:var(--border)] shadow-lg px-3 py-2">
             <p className="text-xs text-[color:var(--text-muted)]">

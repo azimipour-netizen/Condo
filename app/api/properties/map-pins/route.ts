@@ -11,6 +11,8 @@ const QuerySchema = z.object({
   west:  z.coerce.number(),
   // Which set of listings the map is showing. Defaults to for-sale.
   listingType:  z.enum(['sale', 'lease', 'sold']).optional(),
+  // Sold only: how far back to look, in days.
+  soldWithinDays: z.coerce.number().int().min(1).max(3650).optional(),
   priceMin:     z.coerce.number().optional(),
   priceMax:     z.coerce.number().optional(),
   bedroomsMin:  z.coerce.number().optional(),
@@ -49,6 +51,10 @@ export async function GET(req: NextRequest) {
 
     if (listingType === 'sold') {
       where.status = 'sold'
+      // Default to the last 30 days so the tab opens on recent activity rather
+      // than every sale we hold.
+      const days = q.soldWithinDays ?? 30
+      where.soldDate = { gte: new Date(Date.now() - days * 86_400_000) }
     } else {
       where.status = 'active'
       where.transactionType = listingType // 'sale' | 'lease'
