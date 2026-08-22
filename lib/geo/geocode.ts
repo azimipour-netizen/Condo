@@ -12,6 +12,28 @@ const API_KEY = process.env.GOOGLE_MAPS_API_KEY ?? process.env.NEXT_PUBLIC_GOOGL
 // In-process cache keyed by postal code (reset on cold start)
 const cache = new Map<string, { lat: number; lng: number } | null>()
 
+/**
+ * Seed the cache from coordinates already stored on Property rows. A long sync
+ * that restarts would otherwise re-geocode every postal code it had already
+ * resolved, burning both time and Google quota.
+ */
+export function primeGeocodeCache(
+  rows: Array<{ postalCode: string | null; latitude: unknown; longitude: unknown }>,
+): number {
+  let added = 0
+  for (const r of rows) {
+    if (!r.postalCode) continue
+    const key = r.postalCode.replace(/\s/g, '').toUpperCase()
+    if (cache.has(key)) continue
+    const lat = Number(r.latitude)
+    const lng = Number(r.longitude)
+    if (!isFinite(lat) || !isFinite(lng)) continue
+    cache.set(key, { lat, lng })
+    added++
+  }
+  return added
+}
+
 export async function geocodePostalCode(
   postalCode: string,
   city: string,

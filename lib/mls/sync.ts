@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync, unlinkSync } from 'fs'
 import { resolve } from 'path'
 import { db } from '@/lib/db'
 import { getMLSAdapter } from '@/lib/mls/adapter'
+import { primeGeocodeCache } from '@/lib/geo/geocode'
 import type { PropertySummary } from '@/types/property'
 
 function toDbType(t: string): string {
@@ -53,28 +54,46 @@ function propertyToDb(p: PropertySummary) {
   }
 }
 
+const UPSERT_CONCURRENCY = 12
+
+async function upsertOne(p: PropertySummary) {
+  const dbProp = await (db as any).property.upsert({
+    where:  { listingId: p.id },
+    create: propertyToDb(p),
+    update: propertyToDb(p),
+    select: { id: true, images: { where: { order: 0 }, select: { url: true } } },
+  })
+
+  // Only touch PropertyImage when the thumbnail actually changed — the delete+create
+  // pair was costing two extra Neon round trips per listing on every single run.
+  if (p.thumbnail && dbProp.images[0]?.url !== p.thumbnail) {
+    await (db as any).propertyImage.deleteMany({ where: { propertyId: dbProp.id, order: 0 } })
+    await (db as any).propertyImage.create({
+      data: { propertyId: dbProp.id, url: p.thumbnail, order: 0 },
+    })
+  }
+}
+
 async function upsertBatch(properties: PropertySummary[]) {
   let skipped = 0
-  for (const p of properties) {
-    try {
-      const dbProp = await (db as any).property.upsert({
-        where:  { listingId: p.id },
-        create: propertyToDb(p),
-        update: propertyToDb(p),
-        select: { id: true },
-      })
+  const queue = [...properties]
 
-      if (p.thumbnail) {
-        await (db as any).propertyImage.deleteMany({ where: { propertyId: dbProp.id, order: 0 } })
-        await (db as any).propertyImage.create({
-          data: { propertyId: dbProp.id, url: p.thumbnail, order: 0 },
-        })
+  // Neon round trips dominate sync time; running them sequentially left the
+  // connection idle between each one. Fan out to a bounded worker pool instead.
+  async function worker() {
+    while (queue.length > 0) {
+      const p = queue.shift()
+      if (!p) break
+      try {
+        await upsertOne(p)
+      } catch (err) {
+        skipped++
+        console.warn(`[sync] skip ${p.id}: ${String(err).slice(0, 120)}`)
       }
-    } catch (err) {
-      skipped++
-      console.warn(`[sync] skip ${p.id}: ${String(err).slice(0, 120)}`)
     }
   }
+
+  await Promise.all(Array.from({ length: UPSERT_CONCURRENCY }, worker))
   if (skipped > 0) console.warn(`[sync] skipped ${skipped} bad records this batch`)
 }
 
@@ -105,6 +124,14 @@ export async function syncAll(log: (msg: string) => void = console.log): Promise
   let skip  = cp.skip
   let total = cp.total
   if (skip > 0) log(`[sync] resuming at offset ${skip} (${total} already synced)`)
+
+  // Reuse coordinates already resolved in earlier runs instead of re-geocoding them.
+  const known = await (db as any).property.findMany({
+    where:  { postalCode: { not: null }, latitude: { not: null } },
+    select: { postalCode: true, latitude: true, longitude: true },
+    distinct: ['postalCode'],
+  })
+  log(`[sync] geocode cache primed with ${primeGeocodeCache(known)} postal codes`)
 
   const job = await (db as any).syncJob.create({
     data: { provider: 'proptx', status: 'running' },
