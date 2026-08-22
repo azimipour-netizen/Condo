@@ -76,6 +76,7 @@ async function upsertOne(p: PropertySummary) {
 
 async function upsertBatch(properties: PropertySummary[]) {
   let skipped = 0
+  let reported = false
   const queue = [...properties]
 
   // Neon round trips dominate sync time; running them sequentially left the
@@ -88,7 +89,15 @@ async function upsertBatch(properties: PropertySummary[]) {
         await upsertOne(p)
       } catch (err) {
         skipped++
-        console.warn(`[sync] skip ${p.id}: ${String(err).slice(0, 120)}`)
+        // Print one full error per batch — the truncated form hides which field
+        // Prisma actually rejected, which is the only useful part.
+        if (!reported) {
+          reported = true
+          console.warn(`[sync] FIRST FAILURE ${p.id}:\n${String(err).slice(0, 1500)}`)
+          console.warn(`[sync] payload: ${JSON.stringify(propertyToDb(p)).slice(0, 800)}`)
+        } else {
+          console.warn(`[sync] skip ${p.id}`)
+        }
       }
     }
   }
