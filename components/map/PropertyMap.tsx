@@ -313,15 +313,24 @@ export default function PropertyMap({ properties, mapPins, activeId, onMarkerCli
         map.on('mouseleave', POINT_LAYER, () => { map.getCanvas().style.cursor = '' })
 
         if (onBoundsChangeRef.current) {
+          const reportBounds = () => {
+            const b = map.getBounds()
+            onBoundsChangeRef.current?.({
+              north: b.getNorth(), east: b.getEast(), south: b.getSouth(), west: b.getWest(),
+            })
+          }
+          // The initial camera jump to the geolocated center completes before
+          // 'load' fires, so its 'moveend' already happened by the time this
+          // listener attaches — without this, the very first viewport (the
+          // one geolocation just resolved to) never gets reported, and the
+          // map is stuck showing whatever unrelated sample came down with the
+          // page's initial server render.
+          reportBounds()
+
           let timer: ReturnType<typeof setTimeout>
           map.on('moveend', () => {
             clearTimeout(timer)
-            timer = setTimeout(() => {
-              const b = map.getBounds()
-              onBoundsChangeRef.current?.({
-                north: b.getNorth(), east: b.getEast(), south: b.getSouth(), west: b.getWest(),
-              })
-            }, 500)
+            timer = setTimeout(reportBounds, 500)
           })
         }
       })
