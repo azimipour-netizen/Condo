@@ -1,8 +1,11 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import Link from 'next/link'
 import ChatInterface from './ChatInterface'
 import RecentlyViewed from '@/components/property/RecentlyViewed'
+import PropertyCard from '@/components/property/PropertyCard'
+import type { PropertySummary } from '@/types/property'
 
 const SUGGESTED_PROMPTS = [
   '3-bedroom home under $1.5M near transit',
@@ -12,7 +15,31 @@ const SUGGESTED_PROMPTS = [
   'Renovated semi-detached in Leslieville',
 ]
 
-export default function SearchHero() {
+const CITY_LINKS = [
+  { city: 'Toronto', href: '/?city=Toronto' },
+  { city: 'Mississauga', href: '/?city=Mississauga' },
+  { city: 'Vaughan', href: '/?city=Vaughan' },
+  { city: 'Markham', href: '/?city=Markham' },
+  { city: 'Brampton', href: '/?city=Brampton' },
+  { city: 'Richmond Hill', href: '/?city=Richmond+Hill' },
+]
+
+interface Props {
+  featured: PropertySummary[]
+  activeCount: number
+  avgPrice: number | null
+}
+
+/**
+ * Owns whether the homepage shows the marketing hero (stats strip, featured
+ * listings, CTA section) or the full-height chat view. This has to live above
+ * those marketing sections, not inside the hero component alone — they used
+ * to render unconditionally as flex siblings below the hero, which meant that
+ * once a chat started, ChatInterface's `flex-1` region had to compete with
+ * their real rendered height for space and collapsed to near zero. Hiding
+ * them here is what lets the chat actually fill the screen.
+ */
+export default function HomeExperience({ featured, activeCount, avgPrice }: Props) {
   const [query, setQuery] = useState('')
   const [started, setStarted] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -56,11 +83,14 @@ export default function SearchHero() {
   }
 
   if (started) {
+    // ChatInterface's own root already declares `flex flex-1 min-h-0` — no
+    // extra wrapper needed, and none of the marketing sections below render
+    // as siblings here, so it gets the full remaining height.
     return <ChatInterface initialMessage={query.trim()} />
   }
 
   return (
-    <div className="flex-1 flex flex-col">
+    <main className="flex-1 min-h-0 overflow-y-auto flex flex-col bg-[color:var(--background)]">
       {/* Hero */}
       <div className="flex-1 flex flex-col items-center justify-center px-4 py-20">
         <div className="mb-12 text-center">
@@ -128,6 +158,77 @@ export default function SearchHero() {
           Authorized MLS data · GTA &amp; surrounding regions · All listings from verified sources
         </p>
       </div>
-    </div>
+
+      {/* Stats strip */}
+      <div className="border-t border-[color:var(--border)] bg-[color:var(--bg-surface)]">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-5 flex flex-wrap gap-6 items-center justify-center sm:justify-start">
+          {activeCount > 0 && (
+            <div className="text-center sm:text-left">
+              <p className="text-xl font-bold text-[color:var(--foreground)] tabular-nums">{activeCount.toLocaleString()}</p>
+              <p className="text-xs text-[color:var(--text-muted)]">Active listings</p>
+            </div>
+          )}
+          {avgPrice && (
+            <div className="text-center sm:text-left">
+              <p className="text-xl font-bold text-[color:var(--foreground)] tabular-nums">
+                ${(avgPrice / 1_000_000).toFixed(avgPrice % 1_000_000 === 0 ? 0 : 1)}M
+              </p>
+              <p className="text-xs text-[color:var(--text-muted)]">Average price</p>
+            </div>
+          )}
+          <div className="text-center sm:text-left">
+            <p className="text-xl font-bold text-[color:var(--foreground)]">GTA</p>
+            <p className="text-xs text-[color:var(--text-muted)]">Coverage area</p>
+          </div>
+          <div className="sm:ml-auto flex items-center gap-3 flex-wrap justify-center">
+            {CITY_LINKS.map(({ city, href }) => (
+              <Link key={city} href={href}
+                className="text-sm text-[color:var(--text-muted)] hover:text-[color:var(--accent)] transition-colors">
+                {city}
+              </Link>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Featured listings */}
+      {featured.length > 0 && (
+        <section className="max-w-6xl mx-auto px-4 sm:px-6 py-12 w-full">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-bold text-[color:var(--foreground)]">Recently Listed</h2>
+            <Link href="/search"
+              className="text-sm text-[color:var(--accent)] hover:underline font-medium">
+              View all →
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {featured.map(p => (
+              <PropertyCard key={p.id} property={p} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* CTA section */}
+      <section className="border-t border-[color:var(--border)] mt-auto">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-12 grid sm:grid-cols-3 gap-8">
+          <div>
+            <p className="text-lg font-semibold text-[color:var(--foreground)] mb-1">Find Your Home</p>
+            <p className="text-sm text-[color:var(--text-muted)] mb-3">AI-powered search across the GTA.</p>
+            <Link href="/search" className="text-sm text-[color:var(--accent)] hover:underline">Browse all listings →</Link>
+          </div>
+          <div>
+            <p className="text-lg font-semibold text-[color:var(--foreground)] mb-1">Mortgage Calculator</p>
+            <p className="text-sm text-[color:var(--text-muted)] mb-3">Estimate your monthly payments instantly.</p>
+            <Link href="/mortgage-calculator" className="text-sm text-[color:var(--accent)] hover:underline">Try the calculator →</Link>
+          </div>
+          <div>
+            <p className="text-lg font-semibold text-[color:var(--foreground)] mb-1">Open Houses</p>
+            <p className="text-sm text-[color:var(--text-muted)] mb-3">See upcoming showings and RSVP online.</p>
+            <Link href="/open-houses" className="text-sm text-[color:var(--accent)] hover:underline">View open houses →</Link>
+          </div>
+        </div>
+      </section>
+    </main>
   )
 }
