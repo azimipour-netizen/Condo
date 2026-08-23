@@ -233,12 +233,20 @@ function buildFilter(filters: SearchFilters): string {
     if (clause) parts.push(`(${clause})`)
   }
 
+  // Pre-amalgamation Toronto boroughs are not a queryable value anywhere in
+  // AMPRE — City is always "Toronto <district code>" (e.g. "Toronto C06"),
+  // never literally "North York", and CityRegion holds a plain neighbourhood
+  // name, not the borough. `City eq 'North York'` matches zero rows, and
+  // (before this fix) an unhandled value fell through with NO location
+  // constraint at all — returning listings scattered across the whole
+  // province. Narrowing to "somewhere in Toronto" is not precise, but it is
+  // honest and bounded, unlike silently dropping the filter.
+  const LEGACY_TORONTO_BOROUGHS = ['north york', 'etobicoke', 'scarborough', 'east york', 'toronto']
+
   const loc = filters.location
   if (loc?.type === 'city' && loc.value) {
     const v = loc.value.replace(/'/g, "''")
-    // AMPRE stores Toronto as district codes: "Toronto C01", "Toronto E02", etc.
-    // Any value containing "toronto" needs a contains() match, not an eq match.
-    if (v.toLowerCase().includes('toronto')) {
+    if (LEGACY_TORONTO_BOROUGHS.includes(v.toLowerCase())) {
       parts.push("contains(City,'Toronto')")
     } else {
       parts.push(`City eq '${v}'`)
@@ -249,6 +257,24 @@ function buildFilter(filters: SearchFilters): string {
     // CityRegion holds plain neighbourhood names ("Waterfront Communities C1", "The Beaches")
     // Also fall back to City contains for area-name searches
     parts.push(`(contains(CityRegion,'${v}') or contains(City,'${v}'))`)
+  }
+  if (loc?.type === 'intersection' && loc.value) {
+    // AMPRE has no lat/lng, so there is no true proximity match available —
+    // this was previously unhandled entirely, silently dropping the location
+    // constraint and returning listings from anywhere in the province.
+    // Matching either cross-street by name is an honest approximation: real
+    // listings actually on Bayview or Sheppard, not a true radius around the
+    // intersection, but a bounded, defensible result instead of nothing.
+    const streets = loc.value
+      .split(/\s+(?:and|&|\/|at|@)\s+/i)
+      .map(s => s.trim().replace(/'/g, "''"))
+      .filter(Boolean)
+    if (streets.length > 0) {
+      const clause = streets
+        .map(s => `contains(StreetName,'${s}') or contains(UnparsedAddress,'${s}')`)
+        .join(' or ')
+      parts.push(`(${clause})`)
+    }
   }
 
   // Note: AMPRE does not expose Latitude/Longitude — bbox and radius filters are skipped
