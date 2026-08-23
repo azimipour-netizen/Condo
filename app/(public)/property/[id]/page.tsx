@@ -116,6 +116,33 @@ export default async function PropertyDetailPage({ params }: Props) {
     } catch {}
   }
 
+  // Market demand: classic months-of-supply heuristic (active inventory ÷
+  // monthly sale rate). <2mo = seller's market, 2-4mo = balanced, >4mo =
+  // buyer's market. Needs a minimum sample of recent sales to mean anything —
+  // a handful of sold comps in 90 days is too noisy to classify confidently.
+  let marketDemand: { activeCount: number; soldCount90d: number; monthsOfSupply: number; label: 'seller' | 'balanced' | 'buyer' } | null = null
+  try {
+    const since90d = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
+    const [activeCount, soldCount90d] = await Promise.all([
+      (db as any).property.count({
+        where: { propertyType: property.propertyType, city: property.location.city, status: 'active', transactionType: 'sale' },
+      }),
+      (db as any).property.count({
+        where: { propertyType: property.propertyType, city: property.location.city, status: 'sold', soldDate: { gte: since90d } },
+      }),
+    ])
+    if (soldCount90d >= 5) {
+      const monthlySaleRate = soldCount90d / 3
+      const monthsOfSupply = Math.round((activeCount / monthlySaleRate) * 10) / 10
+      marketDemand = {
+        activeCount,
+        soldCount90d,
+        monthsOfSupply,
+        label: monthsOfSupply < 2 ? 'seller' : monthsOfSupply <= 4 ? 'balanced' : 'buyer',
+      }
+    }
+  } catch {}
+
   const BASE = process.env.NEXT_PUBLIC_APP_URL ?? 'https://condohill.com'
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -143,7 +170,7 @@ export default async function PropertyDetailPage({ params }: Props) {
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      <PropertyDetailView property={property} initialSaved={initialSaved} avm={avm} />
+      <PropertyDetailView property={property} initialSaved={initialSaved} avm={avm} marketDemand={marketDemand} />
       <RecentlyViewed />
     </>
   )

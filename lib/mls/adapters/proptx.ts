@@ -11,7 +11,7 @@
  *   MLS_VOW_TOKEN     — VOW Bearer token (for authenticated user queries)
  */
 
-import type { IMLSAdapter, SoldListing } from '../types'
+import type { IMLSAdapter, SoldListing, PropertyRoom } from '../types'
 import type { Property, PropertySummary, PropertyType, PropertyStatus } from '@/types/property'
 import type { SearchFilters, SearchResult } from '@/types/search'
 import { geocodeBatch } from '@/lib/geo/geocode'
@@ -495,6 +495,33 @@ export class PropTxAdapter implements IMLSAdapter {
       return normalize(data.value[0] as any)
     } catch {
       return null
+    }
+  }
+
+  /**
+   * Room-by-room dimensions from AMPRE's PropertyRooms resource — a separate
+   * feed from Property itself. RoomLevel and RoomFeatures are frequently
+   * empty depending on the listing board, so callers should treat them as
+   * optional, not missing data.
+   */
+  async getPropertyRooms(listingKey: string): Promise<PropertyRoom[]> {
+    try {
+      const data = await reso<{ value: unknown[] }>('PropertyRooms', {
+        $filter:  `ListingKey eq '${listingKey.replace(/'/g, "''")}'`,
+        $orderby: 'Order asc',
+      })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (data.value ?? []).map((r: any) => ({
+        type:       r.RoomType ?? 'Room',
+        level:      r.RoomLevel ?? null,
+        length:     typeof r.RoomLength === 'number' ? r.RoomLength : null,
+        width:      typeof r.RoomWidth === 'number' ? r.RoomWidth : null,
+        units:      r.RoomLengthWidthUnits ?? null,
+        dimensions: r.RoomDimensions ?? null,
+        features:   Array.isArray(r.RoomFeatures) ? r.RoomFeatures.filter(Boolean) : [],
+      }))
+    } catch {
+      return []
     }
   }
 

@@ -17,6 +17,9 @@ import OpenHouseSection from './OpenHouseSection'
 import NeighbourhoodStats from './NeighbourhoodStats'
 import PriceHistory from './PriceHistory'
 import ShareButtons from '@/components/ShareButtons'
+import RoomDetails from './RoomDetails'
+import ComparablesSection from './ComparablesSection'
+import MarketDemand from './MarketDemand'
 
 const SinglePropertyMap = dynamic(() => import('@/components/map/SinglePropertyMap'), { ssr: false })
 
@@ -27,10 +30,18 @@ interface AVM {
   comparableCount: number
 }
 
+interface MarketDemandData {
+  activeCount: number
+  soldCount90d: number
+  monthsOfSupply: number
+  label: 'seller' | 'balanced' | 'buyer'
+}
+
 interface Props {
   property: Property
   initialSaved?: boolean
   avm?: AVM | null
+  marketDemand?: MarketDemandData | null
 }
 
 interface HistoryRow {
@@ -161,7 +172,7 @@ const TYPE_LABELS: Record<string, string> = {
   condo: 'Condo', multiplex: 'Multiplex', vacant_land: 'Vacant Land', commercial: 'Commercial',
 }
 
-export default function PropertyDetailView({ property: p, initialSaved, avm }: Props) {
+export default function PropertyDetailView({ property: p, initialSaved, avm, marketDemand }: Props) {
   const [activeImg, setActiveImg] = useState(0)
   const [showModal, setShowModal] = useState(false)
   const [lightbox, setLightbox] = useState(false)
@@ -381,8 +392,20 @@ export default function PropertyDetailView({ property: p, initialSaved, avm }: P
               </div>
             </section>
 
+            {/* Room dimensions */}
+            <RoomDetails propertyId={p.listingId} />
+
             {/* Listing history */}
             <ListingHistory propertyId={p.id} currentPrice={p.price} currentStatus={p.status} listedAt={p.listedAt} listingKey={p.listingId} />
+
+            {/* Comparable sold / active listings */}
+            <ComparablesSection
+              propertyId={p.listingId}
+              city={p.location.city}
+              propertyType={p.propertyType}
+              sqft={p.sqft}
+              bedroomsMin={Math.max(p.bedrooms - 1, 0)}
+            />
           </div>
 
           {/* Right sidebar */}
@@ -448,6 +471,9 @@ export default function PropertyDetailView({ property: p, initialSaved, avm }: P
                 propertyTaxes={p.taxes}
               />
             )}
+
+            {/* Market demand */}
+            {marketDemand && <MarketDemand {...marketDemand} />}
 
             {/* Open Houses */}
             <OpenHouseSection propertyId={p.id} />

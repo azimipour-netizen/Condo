@@ -39,6 +39,18 @@ export interface SoldListing {
   soldDate: Date | null
 }
 
+/** One row from AMPRE's PropertyRooms feed — dimensions for a single room. */
+export interface PropertyRoom {
+  type: string
+  level: string | null
+  length: number | null
+  width: number | null
+  units: string | null
+  /** Pre-formatted imperial string from the feed, e.g. `8ft. 11in. x 12ft. 3in.` */
+  dimensions: string | null
+  features: string[]
+}
+
 /** Compliance rules per MLS provider */
 export interface ComplianceConfig {
   /** Provider name shown in attribution */
