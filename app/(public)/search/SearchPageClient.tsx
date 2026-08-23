@@ -302,34 +302,34 @@ export default function SearchPageClient({ initialResult, initialFilters, initia
       {/* ── Listing type switch ──────────────────────────────── */}
       {/* Sits below the search bar (top-4 + its own height) — sharing its
           position hid this entirely behind the always-visible search bar. */}
-      <div className="absolute top-16 left-1/2 -translate-x-1/2 z-20">
-        <div
-          role="tablist"
-          aria-label="Listing type"
-          className="flex items-center gap-0.5 p-1 rounded-full bg-[color:var(--bg-surface)] border border-[color:var(--border)] shadow-lg"
-        >
-          {LISTING_TABS.map(tab => {
-            const selected = listingType === tab.value
-            return (
-              <button
-                key={tab.value}
-                role="tab"
-                aria-selected={selected}
-                onClick={() => handleListingTypeChange(tab.value)}
-                className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-colors ${
-                  selected
-                    ? 'bg-[color:var(--accent)] text-white'
-                    : 'text-[color:var(--text-muted)] hover:bg-[color:var(--bg-surface-2)]'
-                }`}
-              >
-                {tab.label}
-              </button>
-            )
-          })}
-        </div>
-        {listingType === 'sold' && !soldNeedsAuth && (
-          <div className="mt-2 flex justify-center">
-            <div className="flex items-center gap-1 px-1.5 py-1 rounded-full bg-[color:var(--bg-surface)] border border-[color:var(--border)] shadow-lg overflow-x-auto max-w-[calc(100vw-2rem)]">
+      <div className="absolute top-16 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2 max-w-[calc(100vw-2rem)]">
+        <div className="flex items-start gap-2">
+          <div
+            role="tablist"
+            aria-label="Listing type"
+            className="flex items-center gap-0.5 p-1 rounded-full bg-[color:var(--bg-surface)] border border-[color:var(--border)] shadow-lg shrink-0"
+          >
+            {LISTING_TABS.map(tab => {
+              const selected = listingType === tab.value
+              return (
+                <button
+                  key={tab.value}
+                  role="tab"
+                  aria-selected={selected}
+                  onClick={() => handleListingTypeChange(tab.value)}
+                  className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+                    selected
+                      ? 'bg-[color:var(--accent)] text-white'
+                      : 'text-[color:var(--text-muted)] hover:bg-[color:var(--bg-surface-2)]'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              )
+            })}
+          </div>
+          {listingType === 'sold' && !soldNeedsAuth && (
+            <div className="flex items-center gap-1 px-1.5 py-1 rounded-full bg-[color:var(--bg-surface)] border border-[color:var(--border)] shadow-lg overflow-x-auto">
               <span className="px-2 text-[11px] font-medium text-[color:var(--text-faint)] whitespace-nowrap">Sold in</span>
               {SOLD_RANGES.map(r => (
                 <button
@@ -346,10 +346,10 @@ export default function SearchPageClient({ initialResult, initialFilters, initia
                 </button>
               ))}
             </div>
-          </div>
-        )}
+          )}
+        </div>
         {soldNeedsAuth && (
-          <div className="mt-2 mx-auto w-max max-w-[min(320px,calc(100vw-2rem))] rounded-xl bg-[color:var(--bg-surface)] border border-[color:var(--border)] shadow-lg px-3 py-2">
+          <div className="w-max max-w-[min(320px,calc(100vw-2rem))] rounded-xl bg-[color:var(--bg-surface)] border border-[color:var(--border)] shadow-lg px-3 py-2">
             <p className="text-xs text-[color:var(--text-muted)]">
               <Link href="/login" className="font-semibold text-[color:var(--accent)] hover:underline">Sign in</Link>
               {' '}to see sold prices.
