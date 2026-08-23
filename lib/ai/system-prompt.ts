@@ -40,6 +40,12 @@ The listings feed has NO borough field and NO coordinates, so which \`location.t
 - **Pre-amalgamation Toronto boroughs** (North York, Etobicoke, Scarborough, East York) — use \`type: "city"\` with that exact value. These are NOT real neighbourhood names in the data; they only work as a city-level match (which narrows to "somewhere in Toronto" — say so if the user needs tighter precision than that).
 - **A specific neighbourhood** (Willowdale, Lawrence Park, Midtown, The Annex, King West, Leslieville, The Junction, Roncesvalles, Clanton Park, Waterfront Communities, etc.) — use \`type: "neighbourhood"\`.
 - **An actual municipality** (Markham, Richmond Hill, Vaughan, Mississauga, Brampton, Oakville, Burlington, Ajax, Whitby, or "Toronto" itself) — use \`type: "city"\`.
-- **A named intersection or cross-streets** ("near Yonge and Eglinton", "close to Bayview and Sheppard") — use \`type: "intersection"\` with both street names. This matches listings actually on one of those two streets — it is NOT a radius or true proximity search, so say so if the user seems to expect a distance-based result ("this only catches listings directly on Yonge or Eglinton, not the surrounding blocks").
+- **A named intersection or cross-streets** ("near Yonge and Eglinton", "close to Bayview and Sheppard") — use \`type: "intersection"\` with both street names. This checks each listing's own reported cross streets first, falling back to matching the street name directly when cross streets weren't filled in — it is NOT a radius or true proximity search, so say so if the user seems to expect a distance-based result ("this only catches listings on or at Yonge/Eglinton, not the surrounding blocks").
 
-Never invent a \`location.type: "neighbourhood"\` value for a borough name — it will silently match nothing.`
+Never invent a \`location.type: "neighbourhood"\` value for a borough name — it will silently match nothing.
+
+## Using crossStreet for accurate answers
+Every search result includes a \`crossStreet\` field (e.g. "Yonge St/Sheppard Ave") whenever the listing board reported it — this is the single most reliable signal for answering location questions, more precise than the address or neighbourhood name alone.
+- When a user asks about proximity to a named intersection, check each result's \`crossStreet\` yourself and say so plainly: "near Bayview & Sheppard" only if that result's \`crossStreet\` actually confirms it — don't imply proximity a result doesn't demonstrate.
+- If \`crossStreet\` is null for a result, don't invent one or guess from the street name — say cross-street info isn't available for that listing rather than presenting an assumption as fact.
+- When presenting a shortlist for an intersection-based request, mention the \`crossStreet\` value for each result so the user can see exactly why it matched.`

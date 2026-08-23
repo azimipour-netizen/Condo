@@ -299,7 +299,8 @@ export default function PropertyDetailView({ property: p, initialSaved, avm, mar
                 { icon: '🛏', label: `${p.bedrooms} bed${p.bedrooms !== 1 ? 's' : ''}` },
                 { icon: '🚿', label: `${p.bathroomsTotal} bath${p.bathroomsTotal !== 1 ? 's' : ''}` },
                 ...(p.parkingSpaces > 0 ? [{ icon: '🚗', label: `${p.parkingSpaces} parking` }] : []),
-                ...(p.sqft ? [{ icon: '📐', label: `${p.sqft.toLocaleString()} sqft` }] : []),
+                ...(p.sqft ? [{ icon: '📐', label: `${p.sqft.toLocaleString()} sqft` }]
+                  : p.sqftRange ? [{ icon: '📐', label: `${p.sqftRange} sqft` }] : []),
                 ...(p.lotSize ? [{ icon: '🏡', label: p.lotSize }] : []),
               ].map(s => (
                 <span key={s.label} className="flex items-center gap-1.5 text-[color:var(--text-muted)]">
@@ -344,7 +345,7 @@ export default function PropertyDetailView({ property: p, initialSaved, avm, mar
                   { label: 'Bedrooms', value: p.bedrooms || '—' },
                   { label: 'Bathrooms', value: p.bathroomsTotal || '—' },
                   { label: 'Parking', value: p.parkingSpaces || '—' },
-                  { label: 'Interior', value: p.sqft ? `${p.sqft.toLocaleString()} sqft` : '—' },
+                  { label: 'Interior', value: p.sqft ? `${p.sqft.toLocaleString()} sqft` : p.sqftRange ? `${p.sqftRange} sqft` : '—' },
                   { label: 'Lot size', value: p.lotSize ?? '—' },
                   { label: 'Year built', value: p.yearBuilt ?? '—' },
                   ...(p.rooms ? [{ label: 'Total rooms', value: p.rooms }] : []),

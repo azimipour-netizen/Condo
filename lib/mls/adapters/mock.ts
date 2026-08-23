@@ -80,7 +80,8 @@ function toSummary(p: Property): PropertySummary {
   return {
     id: p.id, status: p.status, transactionType: p.transactionType, price: p.price,
     propertyType: p.propertyType, bedrooms: p.bedrooms, bathroomsTotal: p.bathroomsTotal,
-    parkingSpaces: p.parkingSpaces, sqft: p.sqft, lotSize: p.lotSize, yearBuilt: p.yearBuilt,
+    parkingSpaces: p.parkingSpaces, sqft: p.sqft, sqftRange: p.sqftRange, lotSize: p.lotSize,
+    crossStreet: p.crossStreet, yearBuilt: p.yearBuilt,
     maintenanceFee: p.maintenanceFee, taxes: p.taxes, title: p.title,
     description: p.description, features: p.features,
     location: p.location, thumbnail: p.images[0]?.url ?? null,

@@ -123,7 +123,15 @@ model Property {
   bathroomsTotal  Decimal             @db.Decimal(4, 1)
   parkingSpaces   Int                 @default(0)
   sqft            Int?
+  // Bucketed range ("3500-5000", "5000 +") — AMPRE's LivingAreaRange, the
+  // only size signal available when exact sqft isn't reported (the norm for
+  // residential freehold listings).
+  sqftRange       String?
   lotSize         String?
+  // The two nearest cross streets as reported by the listing agent, e.g.
+  // "Yonge St/Sheppard Ave" — the most reliable field for verifying
+  // proximity to a named intersection.
+  crossStreet     String?
   yearBuilt       Int?
   maintenanceFee  Decimal?            @db.Decimal(10, 2)
   taxes           Decimal?            @db.Decimal(10, 2)

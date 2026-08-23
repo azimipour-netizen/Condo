@@ -106,6 +106,22 @@ function mapStatus(raw: string): PropertyStatus {
   }
 }
 
+/**
+ * Lot size with a three-tier fallback, since exact LotSizeArea is frequently
+ * empty for residential freehold listings:
+ *  1. LotSizeArea + LotSizeUnits — exact, when reported.
+ *  2. LotWidth x LotDepth (feet) — MPAC-sourced frontage/depth, present far
+ *     more often than an explicit area figure.
+ *  3. LotSizeRangeAcres — a bucketed range ("0.50-1.99"), last resort.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function lotSizeString(r: any): string | null {
+  if (r.LotSizeArea) return `${r.LotSizeArea} ${r.LotSizeUnits ?? 'sqft'}`
+  if (r.LotWidth && r.LotDepth) return `${r.LotWidth} x ${r.LotDepth} ft`
+  if (r.LotSizeRangeAcres) return `${r.LotSizeRangeAcres} acres`
+  return null
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function normalize(r: any): Property {
   // AMPRE does not expose Latitude/Longitude through any token tier
@@ -153,9 +169,13 @@ function normalize(r: any): Property {
     bedrooms:       Number(r.BedroomsTotal ?? r.BedroomsAboveGrade ?? 0),
     bathroomsTotal: Number(r.BathroomsTotalInteger ?? 0),
     parkingSpaces:  Number(r.ParkingTotal ?? 0),
-    // AMPRE has no LivingArea; BuildingAreaTotal is populated for commercial only
+    // AMPRE has no LivingArea; BuildingAreaTotal is populated for commercial
+    // only. Residential freehold listings instead report LivingAreaRange —
+    // a bucketed string ("3500-5000", "5000 +") — which is what HouseSigma
+    // and other portals actually display when exact sqft isn't reported.
     sqft:           r.BuildingAreaTotal ? Number(r.BuildingAreaTotal) : null,
-    lotSize:        r.LotSizeArea ? `${r.LotSizeArea} ${r.LotSizeUnits ?? 'sqft'}` : null,
+    sqftRange:      r.LivingAreaRange ?? null,
+    lotSize:        lotSizeString(r),
     yearBuilt:      null,
     maintenanceFee: r.AssociationFee ? Number(r.AssociationFee) : null,
     taxes:          r.TaxAnnualAmount ? Number(r.TaxAnnualAmount) : null,
@@ -186,7 +206,9 @@ function toSummary(p: Property): PropertySummary {
     bathroomsTotal:  p.bathroomsTotal,
     parkingSpaces:   p.parkingSpaces,
     sqft:            p.sqft,
+    sqftRange:       p.sqftRange,
     lotSize:         p.lotSize,
+    crossStreet:     p.crossStreet,
     yearBuilt:       p.yearBuilt,
     maintenanceFee:  p.maintenanceFee,
     taxes:           p.taxes,
@@ -262,16 +284,20 @@ function buildFilter(filters: SearchFilters): string {
     // AMPRE has no lat/lng, so there is no true proximity match available —
     // this was previously unhandled entirely, silently dropping the location
     // constraint and returning listings from anywhere in the province.
-    // Matching either cross-street by name is an honest approximation: real
-    // listings actually on Bayview or Sheppard, not a true radius around the
-    // intersection, but a bounded, defensible result instead of nothing.
+    //
+    // CrossStreet is the field agents actually use to name the two nearest
+    // intersecting streets for a listing (e.g. "Yonge St/Sheppard Ave") —
+    // when it's populated, a match there means the listing IS near that
+    // intersection, not just coincidentally on a same-named street elsewhere
+    // in the province. Falling back to StreetName/UnparsedAddress catches
+    // listings where CrossStreet wasn't filled in.
     const streets = loc.value
       .split(/\s+(?:and|&|\/|at|@)\s+/i)
       .map(s => s.trim().replace(/'/g, "''"))
       .filter(Boolean)
     if (streets.length > 0) {
       const clause = streets
-        .map(s => `contains(StreetName,'${s}') or contains(UnparsedAddress,'${s}')`)
+        .map(s => `contains(CrossStreet,'${s}') or contains(StreetName,'${s}') or contains(UnparsedAddress,'${s}')`)
         .join(' or ')
       parts.push(`(${clause})`)
     }
@@ -345,9 +371,9 @@ export class PropTxAdapter implements IMLSAdapter {
           'PropertyType','PropertySubType',
           'BedroomsTotal','BedroomsAboveGrade','BedroomsBelowGrade',
           'BathroomsTotalInteger','ParkingTotal',
-          'BuildingAreaTotal','LotSizeArea','LotSizeUnits',
+          'BuildingAreaTotal','LivingAreaRange','LotSizeArea','LotSizeUnits','LotWidth','LotDepth','LotSizeRangeAcres',
           'AssociationFee','TaxAnnualAmount',
-          'UnparsedAddress','StreetNumber','StreetName','StreetSuffix',
+          'UnparsedAddress','StreetNumber','StreetName','StreetSuffix','CrossStreet',
           'City','CityRegion','StateOrProvince','PostalCode',
           'PublicRemarks',
           'OriginalEntryTimestamp','ModificationTimestamp',
@@ -400,9 +426,9 @@ export class PropTxAdapter implements IMLSAdapter {
         'PropertyType','PropertySubType',
         'BedroomsTotal','BedroomsAboveGrade','BedroomsBelowGrade',
         'BathroomsTotalInteger','ParkingTotal',
-        'BuildingAreaTotal','LotSizeArea','LotSizeUnits',
+        'BuildingAreaTotal','LivingAreaRange','LotSizeArea','LotSizeUnits','LotWidth','LotDepth','LotSizeRangeAcres',
         'AssociationFee','TaxAnnualAmount',
-        'UnparsedAddress','StreetNumber','StreetName','StreetSuffix',
+        'UnparsedAddress','StreetNumber','StreetName','StreetSuffix','CrossStreet',
         'City','CityRegion','StateOrProvince','PostalCode',
         'PublicRemarks',
         'OriginalEntryTimestamp','ModificationTimestamp',
@@ -453,8 +479,8 @@ export class PropTxAdapter implements IMLSAdapter {
         'ClosePrice','ListPrice','PurchaseContractDate','CloseDate',
         'PropertyType','PropertySubType',
         'BedroomsTotal','BathroomsTotalInteger','ParkingTotal',
-        'BuildingAreaTotal','LotSizeArea','LotSizeUnits',
-        'UnparsedAddress','City','CityRegion','StateOrProvince','PostalCode',
+        'BuildingAreaTotal','LivingAreaRange','LotSizeArea','LotSizeUnits','LotWidth','LotDepth','LotSizeRangeAcres',
+        'UnparsedAddress','CrossStreet','City','CityRegion','StateOrProvince','PostalCode',
         'OriginalEntryTimestamp','ModificationTimestamp',
       ].join(','),
       $orderby: 'ListingKey asc',
