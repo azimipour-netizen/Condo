@@ -300,7 +300,9 @@ export default function SearchPageClient({ initialResult, initialFilters, initia
       </div>
 
       {/* ── Listing type switch ──────────────────────────────── */}
-      <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20">
+      {/* Sits below the search bar (top-4 + its own height) — sharing its
+          position hid this entirely behind the always-visible search bar. */}
+      <div className="absolute top-16 left-1/2 -translate-x-1/2 z-20">
         <div
           role="tablist"
           aria-label="Listing type"
