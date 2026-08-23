@@ -36,7 +36,7 @@ export default function TopNav() {
 
   return (
     <>
-      <header className="flex items-center justify-between px-5 py-3 border-b border-[color:var(--border)] bg-[color:var(--bg-surface)] shrink-0 z-40 relative">
+      <header className="flex items-center justify-between px-5 h-14 border-b border-[color:var(--border)] bg-[color:var(--bg-surface)] shrink-0 z-40 relative">
         <Link href="/" className="flex items-center gap-2">
           <span className="w-6 h-6 rounded-md bg-[color:var(--accent)] flex items-center justify-center">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">

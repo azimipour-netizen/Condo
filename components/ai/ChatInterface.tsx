@@ -204,7 +204,12 @@ export default function ChatInterface({ initialMessage }: Props) {
   const canSave = session?.user && messages.length >= 2 && !isStreaming
 
   return (
-    <div className="flex flex-1 min-h-0 overflow-hidden">
+    // Explicit viewport-relative height rather than flex-1 inherited from
+    // ancestors: body intentionally stays min-h-screen (unbounded) so normal
+    // long pages keep native document scrolling with their footer landing in
+    // the right place. That means flex-1 alone can't size this reliably —
+    // TopNav is a fixed h-14 (56px), so 100dvh minus that is exact.
+    <div className="h-[calc(100dvh-56px)] flex overflow-hidden">
       {/* Left: conversation */}
       <div className="flex flex-col w-full lg:w-[420px] xl:w-[480px] border-r border-[color:var(--border)] bg-[color:var(--bg-surface)] shrink-0">
         {/* Messages */}

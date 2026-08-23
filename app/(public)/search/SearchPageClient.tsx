@@ -285,7 +285,10 @@ export default function SearchPageClient({ initialResult, initialFilters, initia
     priceMin === (p.min?.toString() ?? '') && priceMax === (p.max?.toString() ?? '')
 
   return (
-    <div className="relative flex-1 min-h-0 overflow-hidden">
+    // Explicit viewport-relative height rather than flex-1 inherited from
+    // ancestors — see ChatInterface.tsx for why body stays unbounded and
+    // this needs to size itself against the fixed h-14 TopNav instead.
+    <div className="relative h-[calc(100dvh-56px)] overflow-hidden">
       {/* ── Full-screen map ──────────────────────────────────── */}
       <div className={`absolute inset-0 ${showMobileList ? 'hidden md:block' : 'block'}`}>
         <PropertyMap

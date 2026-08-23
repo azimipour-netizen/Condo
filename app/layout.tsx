@@ -55,7 +55,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="h-dvh flex flex-col">
+      <body className="min-h-screen flex flex-col">
         <Providers>
           <TopNav />
           <div className="flex-1 min-h-0 flex flex-col">{children}</div>
