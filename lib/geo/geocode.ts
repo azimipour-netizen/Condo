@@ -1,21 +1,39 @@
 /**
- * Lightweight Google Maps Geocoding for AMPRE listings.
- * AMPRE provides no Latitude/Longitude — we derive coordinates from PostalCode.
- * Canadian postal codes are precise enough for map pin placement (~half-block radius).
+ * Postal-code geolocation for AMPRE listings — no external API, no billing risk.
+ * AMPRE provides no Latitude/Longitude; we derive coordinates from PostalCode.
+ *
+ * Two tiers:
+ *  1. Exact postal code, from coordinates already resolved and stored on a
+ *     Property row (see primeGeocodeCache). This is where the vast majority
+ *     of lookups land after the first full sync — free forever, since it's
+ *     data we already have.
+ *  2. Forward Sortation Area (the postal code's first 3 characters) centroid,
+ *     from a bundled free dataset (GeoNames, public domain / CC-BY 4.0),
+ *     covering every FSA in Canada. Used only for a postal code we have never
+ *     seen before — new listings in already-covered neighbourhoods, mostly.
+ *     A small deterministic offset spreads listings sharing an FSA instead of
+ *     stacking them on one identical point.
+ *
+ * This replaced the Google Geocoding API after repeated MLS sync restarts
+ * (each one losing the in-process cache) ran up unpredictable API billing.
  */
 
-// GOOGLE_MAPS_API_KEY = server-only key with no referrer restriction (Vercel)
-// NEXT_PUBLIC_GOOGLE_MAPS_KEY has HTTP referrer restriction (condohill.com) which
-// blocks server-side geocoding calls from Vercel — no Referer header → Google 403
-const API_KEY = process.env.GOOGLE_MAPS_API_KEY ?? process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY ?? ''
+import fsaCentroids from './data/fsa-centroids.json'
 
-// In-process cache keyed by postal code (reset on cold start)
+const FSA_CENTROIDS = fsaCentroids as unknown as Record<string, [number, number]>
+
+// In-process cache keyed by full postal code (reset on cold start, refilled by
+// primeGeocodeCache from the database at the start of every sync run).
 const cache = new Map<string, { lat: number; lng: number } | null>()
 
 /**
- * Seed the cache from coordinates already stored on Property rows. A long sync
- * that restarts would otherwise re-geocode every postal code it had already
- * resolved, burning both time and Google quota.
+ * Seed the cache from coordinates already stored on Property rows. A sync
+ * that restarts would otherwise treat every postal code as new, which is
+ * exactly what turned a handful of sync crashes into a large, unnecessary
+ * geocoding bill under the old Google-backed implementation. With no
+ * external API left to call, priming still matters: it's what makes
+ * previously-seen postal codes resolve at full precision instead of
+ * falling back to the coarser FSA centroid.
  */
 export function primeGeocodeCache(
   rows: Array<{ postalCode: string | null; latitude: unknown; longitude: unknown }>,
@@ -34,53 +52,45 @@ export function primeGeocodeCache(
   return added
 }
 
+/** Stable small offset so postal codes sharing one FSA don't stack exactly. */
+function jitter(seed: string): { dLat: number; dLng: number } {
+  let h = 0
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0
+  // ±0.008° is roughly ±800m at GTA latitudes — enough to separate pins
+  // within a neighbourhood without wandering into the next one.
+  const dLat = ((h % 1000) / 1000 - 0.5) * 0.016
+  const dLng = (((h >> 10) % 1000) / 1000 - 0.5) * 0.016
+  return { dLat, dLng }
+}
+
 export async function geocodePostalCode(
   postalCode: string,
-  city: string,
+  _city: string,
 ): Promise<{ lat: number; lng: number } | null> {
-  if (!API_KEY || !postalCode) return null
+  if (!postalCode) return null
 
   const key = postalCode.replace(/\s/g, '').toUpperCase()
   if (cache.has(key)) return cache.get(key)!
 
-  try {
-    const q = encodeURIComponent(`${key} ${city} Canada`)
-    const res = await fetch(
-      `https://maps.googleapis.com/maps/api/geocode/json?address=${q}&key=${API_KEY}`,
-      { next: { revalidate: 86400 } },
-    )
-    if (!res.ok) { cache.set(key, null); return null }
-    const data = await res.json()
-    const loc = data.results?.[0]?.geometry?.location
-    if (!loc) { cache.set(key, null); return null }
-    const result = { lat: loc.lat, lng: loc.lng }
-    cache.set(key, result)
-    return result
-  } catch {
+  const fsa = key.slice(0, 3)
+  const centroid = FSA_CENTROIDS[fsa]
+  if (!centroid) {
     cache.set(key, null)
     return null
   }
+
+  const { dLat, dLng } = jitter(key)
+  const result = { lat: centroid[0] + dLat, lng: centroid[1] + dLng }
+  cache.set(key, result)
+  return result
 }
 
-/** Geocode multiple postal codes in parallel, up to concurrency limit */
+/** Resolve multiple postal codes. Kept async for call-site compatibility —
+ * lookups are pure local computation now, so this resolves immediately. */
 export async function geocodeBatch(
   items: Array<{ postalCode: string | null; city: string }>,
-  concurrency = 8,
 ): Promise<Array<{ lat: number; lng: number } | null>> {
-  const results: Array<{ lat: number; lng: number } | null> = new Array(items.length).fill(null)
-  const queue = items.map((item, i) => ({ item, i }))
-
-  async function worker() {
-    while (queue.length > 0) {
-      const entry = queue.shift()
-      if (!entry) break
-      const { item, i } = entry
-      if (item.postalCode) {
-        results[i] = await geocodePostalCode(item.postalCode, item.city)
-      }
-    }
-  }
-
-  await Promise.all(Array.from({ length: concurrency }, worker))
-  return results
+  return Promise.all(
+    items.map(item => item.postalCode ? geocodePostalCode(item.postalCode, item.city) : Promise.resolve(null)),
+  )
 }
