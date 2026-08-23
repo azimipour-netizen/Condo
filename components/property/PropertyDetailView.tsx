@@ -241,7 +241,12 @@ export default function PropertyDetailView({ property: p, initialSaved, avm, mar
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
         <div className="grid lg:grid-cols-[1fr_380px] gap-8">
           {/* Left */}
-          <div>
+          {/* min-w-0 is required here: CSS Grid items default to min-width:auto,
+              so a wide descendant (the comparables card row's overflow-x-auto,
+              or a long table) can force this whole column past the 1fr track
+              width instead of scrolling internally — pushing the entire page
+              into unwanted horizontal scroll. */}
+          <div className="min-w-0">
             {/* Image gallery */}
             {p.images.length > 0 && (
               <div className="mb-6">
