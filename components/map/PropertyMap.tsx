@@ -55,6 +55,27 @@ function ensureMapsLoaded(apiKey: string): Promise<void> {
   return mapsReady
 }
 
+interface InitialView { center: { lat: number; lng: number }; zoom: number }
+
+/**
+ * Resolve the map's opening view from the visitor's IP (no permission prompt,
+ * resolves in well under a second). Falls back to the fixed GTA center when
+ * the lookup fails or times out, so a slow geo API never blocks the map.
+ * Zoom 13 renders roughly a 5km-radius view around the resolved point.
+ */
+async function fetchInitialCenter(): Promise<InitialView> {
+  try {
+    const res = await fetch('/api/geo/ip-location', { signal: AbortSignal.timeout(1800) })
+    if (res.ok) {
+      const data = await res.json()
+      if (typeof data.lat === 'number' && typeof data.lng === 'number') {
+        return { center: { lat: data.lat, lng: data.lng }, zoom: 13 }
+      }
+    }
+  } catch { /* geolocation unavailable — use the fixed default */ }
+  return { center: GTA_CENTER, zoom: 11 }
+}
+
 function formatPrice(price: number): string {
   if (price >= 1_000_000) return `$${(price / 1_000_000).toFixed(price % 1_000_000 === 0 ? 0 : 1)}M`
   if (price >= 1_000) return `$${Math.round(price / 1_000)}K`
@@ -112,17 +133,20 @@ export default function PropertyMap({ properties, mapPins, activeId, onMarkerCli
     initRef.current = true
     injectMarkerStyles()
 
-    ensureMapsLoaded(apiKey).then(() =>
-      Promise.all([
-        google.maps.importLibrary('maps') as Promise<google.maps.MapsLibrary>,
-        google.maps.importLibrary('marker') as Promise<google.maps.MarkerLibrary>,
-      ])
-    ).then(([{ Map }, { AdvancedMarkerElement }]) => {
+    Promise.all([
+      ensureMapsLoaded(apiKey).then(() =>
+        Promise.all([
+          google.maps.importLibrary('maps') as Promise<google.maps.MapsLibrary>,
+          google.maps.importLibrary('marker') as Promise<google.maps.MarkerLibrary>,
+        ])
+      ),
+      fetchInitialCenter(),
+    ]).then(([[{ Map }, { AdvancedMarkerElement }], initial]) => {
         if (!containerRef.current) return
 
         const map = new Map(containerRef.current, {
-          center: GTA_CENTER,
-          zoom: 11,
+          center: initial.center,
+          zoom: initial.zoom,
           mapId: MAP_ID,
           mapTypeControl: false,
           streetViewControl: false,
@@ -130,6 +154,11 @@ export default function PropertyMap({ properties, mapPins, activeId, onMarkerCli
           clickableIcons: false,
         })
         mapRef.current = map
+
+        // The initial `properties` list is an unfiltered, region-wide sample —
+        // fitting bounds to it would immediately zoom back out past the
+        // visitor's location. The explicit center above IS the intended view.
+        fittedRef.current = true
 
         // Viewport-based search callback
         if (onBoundsChange) {
