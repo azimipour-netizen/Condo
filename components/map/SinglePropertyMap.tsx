@@ -4,6 +4,11 @@ import { useEffect, useRef } from 'react'
 import * as maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 
+// See PropertyMap.tsx — Turbopack doesn't reliably bundle MapLibre's Web
+// Worker, leaving the map a blank canvas. Load the matching version's worker
+// from a CDN instead of relying on the bundler to emit it.
+maplibregl.setWorkerUrl(`https://cdn.jsdelivr.net/npm/maplibre-gl@6.5.0/dist/maplibre-gl-worker.mjs`)
+
 interface Props {
   lat: number
   lng: number

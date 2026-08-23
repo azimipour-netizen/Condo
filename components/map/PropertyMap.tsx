@@ -3,6 +3,14 @@
 import { useEffect, useRef } from 'react'
 import * as maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
+
+// MapLibre offloads tile fetching/decoding to a Web Worker, loaded from
+// node_modules via `new Worker(new URL(...))`. Turbopack doesn't reliably
+// bundle that pattern for this package (the request 404s and Next.js's HTML
+// fallback gets served as the "module script", failing MIME checks) — the
+// whole map renders as a blank canvas with no error surfaced. Pointing at the
+// same version's worker on a public CDN sidesteps the bundler entirely.
+maplibregl.setWorkerUrl(`https://cdn.jsdelivr.net/npm/maplibre-gl@6.5.0/dist/maplibre-gl-worker.mjs`)
 import type { PropertySummary } from '@/types/property'
 import type { BoundingBox } from '@/types/search'
 
