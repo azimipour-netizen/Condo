@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { MarkerClusterer, SuperClusterAlgorithm } from '@googlemaps/markerclusterer'
+import * as maplibregl from 'maplibre-gl'
+import 'maplibre-gl/dist/maplibre-gl.css'
 import type { PropertySummary } from '@/types/property'
 import type { BoundingBox } from '@/types/search'
 
@@ -22,7 +23,7 @@ export interface MapPin {
   listingType?: ListingType
 }
 
-export type ListingType = 'sale' | 'lease' | 'sold' 
+export type ListingType = 'sale' | 'lease' | 'sold'
 
 interface Props {
   properties: PropertySummary[]
@@ -37,25 +38,21 @@ interface Props {
 // Above this size a cluster is still too coarse to list — zoom in instead.
 const CLUSTER_LIST_MAX = 50
 
-const GTA_CENTER = { lat: 43.7, lng: -79.42 }
-const MAP_ID = process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID ?? 'DEMO_MAP_ID'
+const GTA_CENTER: [number, number] = [-79.42, 43.7]
+const MAPTILER_KEY = process.env.NEXT_PUBLIC_MAPTILER_KEY ?? ''
+const STYLE_URL = `https://api.maptiler.com/maps/streets-v2/style.json?key=${MAPTILER_KEY}`
 
-let mapsReady: Promise<void> | null = null
-function ensureMapsLoaded(apiKey: string): Promise<void> {
-  if (mapsReady) return mapsReady
-  if (window.google?.maps) { mapsReady = Promise.resolve(); return mapsReady }
-  mapsReady = new Promise<void>((resolve, reject) => {
-    const cb = '__gm_cb_' + Math.random().toString(36).slice(2)
-    ;(window as unknown as Record<string, unknown>)[cb] = resolve
-    const s = document.createElement('script')
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&v=weekly&libraries=maps,marker&callback=${cb}`
-    s.onerror = reject
-    document.head.appendChild(s)
-  })
-  return mapsReady
-}
+const SOURCE_ID = 'properties'
+const CLUSTER_LAYER = 'clusters'
+const CLUSTER_COUNT_LAYER = 'cluster-count'
+const POINT_LAYER = 'unclustered-point'
+const POINT_LABEL_LAYER = 'unclustered-point-label'
 
-interface InitialView { center: { lat: number; lng: number }; zoom: number }
+const COLOR_SALE = '#0D9488'
+const COLOR_SOLD = '#7C2D12'
+const COLOR_ACTIVE = '#0F766E'
+
+interface InitialView { center: [number, number]; zoom: number }
 
 /**
  * Resolve the map's opening view from the visitor's IP (no permission prompt,
@@ -69,7 +66,7 @@ async function fetchInitialCenter(): Promise<InitialView> {
     if (res.ok) {
       const data = await res.json()
       if (typeof data.lat === 'number' && typeof data.lng === 'number') {
-        return { center: { lat: data.lat, lng: data.lng }, zoom: 13 }
+        return { center: [data.lng, data.lat], zoom: 13 }
       }
     }
   } catch { /* geolocation unavailable — use the fixed default */ }
@@ -82,228 +79,276 @@ function formatPrice(price: number): string {
   return `$${price}`
 }
 
-let styleInjected = false
-function injectMarkerStyles() {
-  if (styleInjected || typeof document === 'undefined') return
-  styleInjected = true
-  const s = document.createElement('style')
-  s.textContent = `
-    .pm { background:white; border:2px solid #DDE3EE; border-radius:999px; padding:4px 10px;
-          font:600 12px/1 -apple-system,system-ui,sans-serif; color:#0B1120;
-          box-shadow:0 2px 8px rgba(0,0,0,.12); cursor:pointer; white-space:nowrap;
-          transition:transform .15s, border-color .15s, background .15s; }
-    .pm:hover,.pm.active { background:#0D9488; color:#fff; border-color:#0D9488; transform:scale(1.08); }
-    .pm.active { transform:scale(1.12); z-index:20 !important; }
-    .pm.sold { background:#7C2D12; color:#fff; border-color:#7C2D12; }
-    .pm.sold:hover,.pm.sold.active { background:#9A3412; border-color:#9A3412; }
-    .pm.lease { border-color:#0D9488; color:#0D9488; }
-    .cm { background:#0D9488; border:3px solid #fff; border-radius:50%;
-          display:flex; align-items:center; justify-content:center;
-          font:700 13px/1 -apple-system,system-ui,sans-serif; color:#fff;
-          box-shadow:0 3px 10px rgba(13,148,136,.4); cursor:pointer; }
-  `
-  document.head.appendChild(s)
+interface MarkerItem {
+  id: string
+  lat: number
+  lng: number
+  price: number
+  title: string
+  kind: ListingType
 }
 
-function makeMarkerEl(price: number, active: boolean, kind?: ListingType): HTMLDivElement {
-  const el = document.createElement('div')
-  const variant = kind && kind !== 'sale' ? ' ' + kind : ''
-  el.className = 'pm' + variant + (active ? ' active' : '')
-  // Lease prices are monthly, so a bare $2K would read as a sale price.
-  el.textContent = kind === 'lease' ? formatPrice(price) + '/mo' : formatPrice(price)
-  return el
+function toItems(properties: PropertySummary[], pins?: MapPin[]): MarkerItem[] {
+  if (pins && pins.length > 0) {
+    return pins.map(p => ({
+      id: p.id, lat: p.lat, lng: p.lng, price: p.price,
+      title: p.address ?? p.city, kind: p.listingType ?? 'sale',
+    }))
+  }
+  return properties
+    .filter(p => p.location.latitude != null && p.location.longitude != null)
+    .map(p => ({
+      id: p.id,
+      lat: Number(p.location.latitude),
+      lng: Number(p.location.longitude),
+      price: p.price,
+      title: p.title,
+      kind: (p.transactionType as ListingType) ?? 'sale',
+    }))
+}
+
+function toGeoJSON(items: MarkerItem[]): GeoJSON.FeatureCollection<GeoJSON.Point> {
+  return {
+    type: 'FeatureCollection',
+    features: items.map(it => ({
+      type: 'Feature',
+      id: it.id,
+      geometry: { type: 'Point', coordinates: [it.lng, it.lat] },
+      properties: {
+        id: it.id,
+        kind: it.kind,
+        priceLabel: it.kind === 'lease' ? `${formatPrice(it.price)}/mo` : formatPrice(it.price),
+        color: it.kind === 'sold' ? COLOR_SOLD : COLOR_SALE,
+      },
+    })),
+  }
 }
 
 export default function PropertyMap({ properties, mapPins, activeId, onMarkerClick, onClusterClick, onBoundsChange, className }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const mapRef = useRef<google.maps.Map | null>(null)
-  const markersRef = useRef<Map<string, google.maps.marker.AdvancedMarkerElement>>(new Map())
-  // Reverse lookup so a cluster can report which listings it contains.
-  const markerIdRef = useRef<WeakMap<object, string>>(new WeakMap())
+  const mapRef = useRef<maplibregl.Map | null>(null)
+  const readyRef = useRef(false)
+  const fittedRef = useRef(false)
+  const activeIdRef = useRef<string | null>(null)
+  const onMarkerClickRef = useRef(onMarkerClick)
+  onMarkerClickRef.current = onMarkerClick
   const onClusterClickRef = useRef(onClusterClick)
   onClusterClickRef.current = onClusterClick
-  const clustererRef = useRef<MarkerClusterer | null>(null)
-  const initRef = useRef(false)
-  const fittedRef = useRef(false)
-  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY ?? ''
+  const onBoundsChangeRef = useRef(onBoundsChange)
+  onBoundsChangeRef.current = onBoundsChange
+  const itemsRef = useRef<MarkerItem[]>([])
 
-  // Init map
-  useEffect(() => {
-    if (!containerRef.current || initRef.current || !apiKey) return
-    initRef.current = true
-    injectMarkerStyles()
-
-    Promise.all([
-      ensureMapsLoaded(apiKey).then(() =>
-        Promise.all([
-          google.maps.importLibrary('maps') as Promise<google.maps.MapsLibrary>,
-          google.maps.importLibrary('marker') as Promise<google.maps.MarkerLibrary>,
-        ])
-      ),
-      fetchInitialCenter(),
-    ]).then(([[{ Map }, { AdvancedMarkerElement }], initial]) => {
-        if (!containerRef.current) return
-
-        const map = new Map(containerRef.current, {
-          center: initial.center,
-          zoom: initial.zoom,
-          mapId: MAP_ID,
-          mapTypeControl: false,
-          streetViewControl: false,
-          fullscreenControl: false,
-          clickableIcons: false,
-        })
-        mapRef.current = map
-
-        // The initial `properties` list is an unfiltered, region-wide sample —
-        // fitting bounds to it would immediately zoom back out past the
-        // visitor's location. The explicit center above IS the intended view.
-        fittedRef.current = true
-
-        // Viewport-based search callback
-        if (onBoundsChange) {
-          let timer: ReturnType<typeof setTimeout>
-          map.addListener('idle', () => {
-            clearTimeout(timer)
-            timer = setTimeout(() => {
-              const b = map.getBounds()
-              if (!b) return
-              const ne = b.getNorthEast()
-              const sw = b.getSouthWest()
-              onBoundsChange({ north: ne.lat(), east: ne.lng(), south: sw.lat(), west: sw.lng() })
-            }, 500)
-          })
-        }
-
-        buildMarkers(map, AdvancedMarkerElement, properties, activeId ?? null, onMarkerClick, mapPins)
-      }
-    )
-
-    return () => {
-      clustererRef.current?.clearMarkers()
-      clustererRef.current = null
-      markersRef.current.forEach(m => { m.map = null })
-      markersRef.current.clear()
-      mapRef.current = null
-      initRef.current = false
+  function applyActiveState(id: string | null) {
+    const map = mapRef.current
+    if (!map) return
+    if (activeIdRef.current) {
+      map.setFeatureState({ source: SOURCE_ID, id: activeIdRef.current }, { active: false })
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiKey])
-
-  function buildMarkers(
-    map: google.maps.Map,
-    AME: typeof google.maps.marker.AdvancedMarkerElement,
-    props: PropertySummary[],
-    active: string | null,
-    onClick?: (id: string) => void,
-    pins?: MapPin[],
-  ) {
-    clustererRef.current?.clearMarkers()
-    markersRef.current.forEach(m => { m.map = null })
-    markersRef.current.clear()
-
-    const newMarkers: google.maps.marker.AdvancedMarkerElement[] = []
-    const bounds = new google.maps.LatLngBounds()
-    let hasPos = false
-
-    // Use cached DB pins when available (thousands of markers), fall back to AMPRE results
-    const items: Array<{ id: string; price: number; lat: number; lng: number; title: string; kind?: ListingType }> =
-      pins && pins.length > 0
-        ? pins.map(p => ({ id: p.id, price: p.price, lat: p.lat, lng: p.lng, title: p.address ?? p.city, kind: p.listingType }))
-        : props
-            .filter(p => p.location.latitude != null && p.location.longitude != null)
-            .map(p => ({
-              id:    p.id,
-              price: p.price,
-              lat:   Number(p.location.latitude),
-              lng:   Number(p.location.longitude),
-              title: p.title,
-            }))
-
-    for (const p of items) {
-      const pos = { lat: p.lat, lng: p.lng }
-      bounds.extend(pos)
-      hasPos = true
-
-      const el = makeMarkerEl(p.price, p.id === active, p.kind)
-      const marker = new AME({ map, position: pos, content: el, title: p.title })
-      marker.addListener('click', () => onClick?.(p.id))
-      markersRef.current.set(p.id, marker)
-      markerIdRef.current.set(marker, p.id)
-      newMarkers.push(marker)
+    if (id) {
+      map.setFeatureState({ source: SOURCE_ID, id }, { active: true })
     }
+    activeIdRef.current = id
+  }
 
-    if (!clustererRef.current) {
-      clustererRef.current = new MarkerClusterer({
-        map,
-        markers: newMarkers,
-        algorithm: new SuperClusterAlgorithm({ radius: 60, maxZoom: 14 }),
-        // Default behaviour just zooms to the cluster bounds. For a cluster small
-        // enough to read, list its listings instead — zooming into a stack of units
-        // at one address never separates them.
-        onClusterClick: (event, cluster, clusterMap) => {
-          const ids = (cluster.markers ?? [])
-            .map(m => markerIdRef.current.get(m as object))
-            .filter((id): id is string => typeof id === 'string')
+  function setData(items: MarkerItem[]) {
+    itemsRef.current = items
+    const map = mapRef.current
+    if (!map || !readyRef.current) return
+    const source = map.getSource(SOURCE_ID) as maplibregl.GeoJSONSource | undefined
+    if (!source) return
+    source.setData(toGeoJSON(items))
+    if (activeIdRef.current) applyActiveState(activeIdRef.current)
 
-          if (onClusterClickRef.current && ids.length > 0 && ids.length <= CLUSTER_LIST_MAX) {
-            onClusterClickRef.current(ids)
-            return
-          }
-          if (cluster.bounds) clusterMap.fitBounds(cluster.bounds, 60)
-        },
-        renderer: {
-          render({ count, position }) {
-            const size = Math.min(44 + count * 2, 64)
-            const el = document.createElement('div')
-            el.className = 'cm'
-            el.style.cssText = `width:${size}px;height:${size}px`
-            el.textContent = String(count)
-            return new AME({ position, content: el })
-          },
-        },
-      })
-    } else {
-      clustererRef.current.addMarkers(newMarkers)
-    }
-
-    if (hasPos && !fittedRef.current) {
+    if (!fittedRef.current && items.length > 0) {
       fittedRef.current = true
-      map.fitBounds(bounds, 60)
-      const l = map.addListener('bounds_changed', () => {
-        if ((map.getZoom() ?? 0) > 15) map.setZoom(15)
-        google.maps.event.removeListener(l)
-      })
+      const bounds = new maplibregl.LngLatBounds()
+      items.forEach(it => bounds.extend([it.lng, it.lat]))
+      map.fitBounds(bounds, { padding: 60, maxZoom: 15, animate: false })
     }
   }
 
-  // Update markers when properties list changes
+  // Init map
   useEffect(() => {
-    if (!mapRef.current || !initRef.current) return
-    google.maps.importLibrary('marker').then((lib) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      buildMarkers(mapRef.current!, (lib as any).AdvancedMarkerElement, properties, activeId ?? null, onMarkerClick, mapPins)
+    if (!containerRef.current || mapRef.current || !MAPTILER_KEY) return
+
+    let cancelled = false
+
+    fetchInitialCenter().then(initial => {
+      if (cancelled || !containerRef.current) return
+
+      const map = new maplibregl.Map({
+        container: containerRef.current,
+        style: STYLE_URL,
+        center: initial.center,
+        zoom: initial.zoom,
+        attributionControl: false,
+      })
+      map.addControl(new maplibregl.AttributionControl({ compact: true }))
+      map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right')
+      mapRef.current = map
+
+      // The initial `properties` list is an unfiltered, region-wide sample —
+      // fitting bounds to it would immediately zoom back out past the
+      // visitor's location. The explicit center above IS the intended view.
+      fittedRef.current = true
+
+      map.on('load', () => {
+        if (cancelled) return
+        readyRef.current = true
+
+        map.addSource(SOURCE_ID, {
+          type: 'geojson',
+          data: toGeoJSON(itemsRef.current),
+          cluster: true,
+          // Below this zoom, points always render as a zone bubble with a
+          // count — never as scattered raw pins. Only past clusterMaxZoom
+          // does a zone break apart into its individual listings.
+          clusterMaxZoom: 15,
+          clusterRadius: 70,
+          promoteId: 'id',
+        })
+
+        map.addLayer({
+          id: CLUSTER_LAYER,
+          type: 'circle',
+          source: SOURCE_ID,
+          filter: ['has', 'point_count'],
+          paint: {
+            'circle-color': COLOR_SALE,
+            'circle-stroke-color': '#ffffff',
+            'circle-stroke-width': 3,
+            'circle-radius': [
+              'step', ['get', 'point_count'],
+              18, 10, 22, 50, 26, 200, 32,
+            ],
+          },
+        })
+
+        map.addLayer({
+          id: CLUSTER_COUNT_LAYER,
+          type: 'symbol',
+          source: SOURCE_ID,
+          filter: ['has', 'point_count'],
+          layout: {
+            'text-field': ['get', 'point_count_abbreviated'],
+            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+            'text-size': 13,
+          },
+          paint: { 'text-color': '#ffffff' },
+        })
+
+        map.addLayer({
+          id: POINT_LAYER,
+          type: 'circle',
+          source: SOURCE_ID,
+          filter: ['!', ['has', 'point_count']],
+          paint: {
+            'circle-color': ['case', ['boolean', ['feature-state', 'active'], false], COLOR_ACTIVE, ['get', 'color']],
+            'circle-radius': ['case', ['boolean', ['feature-state', 'active'], false], 9, 6],
+            'circle-stroke-color': '#ffffff',
+            'circle-stroke-width': 2,
+          },
+        })
+
+        map.addLayer({
+          id: POINT_LABEL_LAYER,
+          type: 'symbol',
+          source: SOURCE_ID,
+          filter: ['!', ['has', 'point_count']],
+          layout: {
+            'text-field': ['get', 'priceLabel'],
+            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+            'text-size': 11,
+            'text-offset': [0, 1.4],
+            'text-anchor': 'top',
+            'text-allow-overlap': false,
+          },
+          paint: {
+            'text-color': '#0B1120',
+            'text-halo-color': '#ffffff',
+            'text-halo-width': 1.5,
+          },
+        })
+
+        // Seed with whatever data arrived before the style finished loading.
+        setData(itemsRef.current)
+
+        map.on('click', CLUSTER_LAYER, async (e: maplibregl.MapLayerMouseEvent) => {
+          const features = map.queryRenderedFeatures(e.point, { layers: [CLUSTER_LAYER] })
+          const clusterId = features[0]?.properties?.cluster_id
+          const pointCount = features[0]?.properties?.point_count as number | undefined
+          const source = map.getSource(SOURCE_ID) as maplibregl.GeoJSONSource
+          if (clusterId == null) return
+
+          if (onClusterClickRef.current && pointCount != null && pointCount <= CLUSTER_LIST_MAX) {
+            try {
+              const leaves = await source.getClusterLeaves(clusterId, pointCount, 0)
+              const ids = leaves.map(f => String(f.properties?.id)).filter(Boolean)
+              onClusterClickRef.current?.(ids)
+            } catch { /* cluster expired mid-click — ignore */ }
+            return
+          }
+
+          const zoom = await source.getClusterExpansionZoom(clusterId)
+          const geom = features[0].geometry as GeoJSON.Point
+          map.easeTo({ center: geom.coordinates as [number, number], zoom })
+        })
+
+        map.on('click', POINT_LAYER, (e: maplibregl.MapLayerMouseEvent) => {
+          const id = e.features?.[0]?.properties?.id
+          if (id != null) onMarkerClickRef.current?.(String(id))
+        })
+
+        map.on('mouseenter', CLUSTER_LAYER, () => { map.getCanvas().style.cursor = 'pointer' })
+        map.on('mouseleave', CLUSTER_LAYER, () => { map.getCanvas().style.cursor = '' })
+        map.on('mouseenter', POINT_LAYER, () => { map.getCanvas().style.cursor = 'pointer' })
+        map.on('mouseleave', POINT_LAYER, () => { map.getCanvas().style.cursor = '' })
+
+        if (onBoundsChangeRef.current) {
+          let timer: ReturnType<typeof setTimeout>
+          map.on('moveend', () => {
+            clearTimeout(timer)
+            timer = setTimeout(() => {
+              const b = map.getBounds()
+              onBoundsChangeRef.current?.({
+                north: b.getNorth(), east: b.getEast(), south: b.getSouth(), west: b.getWest(),
+              })
+            }, 500)
+          })
+        }
+      })
     })
+
+    return () => {
+      cancelled = true
+      readyRef.current = false
+      mapRef.current?.remove()
+      mapRef.current = null
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Update markers when properties/pins change
+  useEffect(() => {
+    setData(toItems(properties, mapPins))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [properties, mapPins])
 
-  // Sync active highlight without rebuilding markers
+  // Sync active highlight without rebuilding the source
   useEffect(() => {
-    markersRef.current.forEach((marker, id) => {
-      const el = marker.content as HTMLElement | null
-      if (!el) return
-      el.classList.toggle('active', id === activeId)
-    })
+    if (!readyRef.current) return
+    applyActiveState(activeId ?? null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId])
 
-  if (!apiKey) {
+  if (!MAPTILER_KEY) {
     return (
       <div className={`flex flex-col items-center justify-center gap-2 bg-[color:var(--bg-surface-2)] text-[color:var(--text-faint)] ${className ?? ''}`}>
         <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
           <path d="M16 3C10.5 3 6 7.5 6 13C6 20.3 16 29 16 29S26 20.3 26 13C26 7.5 21.5 3 16 3ZM16 16.5C14.1 16.5 12.5 14.9 12.5 13C12.5 11.1 14.1 9.5 16 9.5C17.9 9.5 19.5 11.1 19.5 13C19.5 14.9 17.9 16.5 16 16.5Z" stroke="currentColor" strokeWidth="1.5"/>
         </svg>
         <p className="text-xs font-medium">Map unavailable</p>
-        <p className="text-xs">Set NEXT_PUBLIC_GOOGLE_MAPS_KEY in .env</p>
+        <p className="text-xs">Set NEXT_PUBLIC_MAPTILER_KEY in .env</p>
       </div>
     )
   }
