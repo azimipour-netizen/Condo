@@ -4,6 +4,7 @@ import { motion, type Variants } from 'motion/react'
 import { Mail, FileText, ShieldCheck, User } from 'lucide-react'
 import DocAccessToggle from './DocAccessToggle'
 import DeleteUserButton from './DeleteUserButton'
+import RoleSelect from './RoleSelect'
 
 const container: Variants = {
   hidden: {},
@@ -162,6 +163,13 @@ export default function UsersGrid({ users, currentUserId, canDelete }: GridProps
                     </span>
                     <DocAccessToggle userId={u.id} initialUnlocked={u.documentsUnlocked} />
                   </div>
+                )}
+                {canDelete && (
+                  <RoleSelect
+                    userId={u.id}
+                    initialRole={u.role as 'consumer' | 'agent' | 'admin'}
+                    isSelf={u.id === currentUserId}
+                  />
                 )}
                 {canDelete && (
                   <DeleteUserButton
