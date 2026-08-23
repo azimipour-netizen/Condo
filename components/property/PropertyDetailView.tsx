@@ -180,6 +180,16 @@ export default function PropertyDetailView({ property: p, initialSaved, avm, mar
   const router = useRouter()
   usePageView(p.id)
 
+  // Next.js reuses this component instance when navigating between two
+  // /property/[id] pages (e.g. clicking a comparable listing) — it does not
+  // remount, so component state like the selected photo index would
+  // otherwise carry over from the previous listing. Reset per-listing UI
+  // state whenever the listing itself actually changes.
+  useEffect(() => {
+    setActiveImg(0)
+    setLightbox(false)
+  }, [p.id])
+
   async function handleShare() {
     const url = typeof window !== 'undefined' ? window.location.href : ''
     if (navigator.share) {
