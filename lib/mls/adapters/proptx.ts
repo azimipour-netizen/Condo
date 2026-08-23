@@ -492,7 +492,22 @@ export class PropTxAdapter implements IMLSAdapter {
       })
       if (!data.value.length) return null
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return normalize(data.value[0] as any)
+      const property = normalize(data.value[0] as any)
+
+      // normalize() always leaves lat/lng null — AMPRE exposes no coordinates
+      // at all, so every code path needs to geocode by postal code itself.
+      // searchListings()/sync do this already; a single-listing fetch (this
+      // detail page view) was the one path that never did, so the map on
+      // every property page silently showed "Location not available".
+      const coords = (await geocodeBatch([
+        { postalCode: property.location.postalCode, city: property.location.city },
+      ]))[0]
+      if (coords) {
+        property.location.latitude = coords.lat
+        property.location.longitude = coords.lng
+      }
+
+      return property
     } catch {
       return null
     }
