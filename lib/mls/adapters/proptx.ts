@@ -352,15 +352,21 @@ export class PropTxAdapter implements IMLSAdapter {
     return { properties, total, page, totalPages: Math.ceil(total / effectiveLimit), appliedFilters: filters }
   }
 
-  /**
-   * Full-sync page fetch. Unlike searchListings this orders by ListingKey (stable —
-   * a listing modified mid-run does not reshuffle later pages and cause skips) and
-   * skips the $count query, which is dead weight when walking every page anyway.
+/**
+   * Full-sync page fetch. Cursor-paginated on ListingKey rather than $skip:
+   * AMPRE hard-rejects any request where $skip + $top exceeds 100,000 ("total
+   * count result set cannot exceed 100000"), regardless of how many rows the
+   * underlying dataset actually has — with ~100,571 total listings, offset
+   * pagination hit that wall a few hundred rows from the end and could never
+   * finish. A `ListingKey gt <cursor>` filter has no such ceiling, since there
+   * is no $skip involved at all — this is standard OData keyset pagination.
+   * ListingKey order is also stable, so a listing modified mid-run doesn't
+   * reshuffle later pages and cause skips.
    */
-  async getSyncPage(skip: number, limit = 100): Promise<PropertySummary[]> {
+  async getSyncPage(cursor: string | null, limit = 100): Promise<PropertySummary[]> {
     const data = await reso<{ value: unknown[] }>('Property', {
+      ...(cursor ? { $filter: `ListingKey gt '${cursor.replace(/'/g, "''")}'` } : {}),
       $top:    String(limit),
-      $skip:   String(skip),
       $expand: 'Media($top=1)',
       $select: [
         'ListingKey','StandardStatus','TransactionType',
@@ -396,6 +402,8 @@ export class PropTxAdapter implements IMLSAdapter {
 
   /**
    * Sold (Closed) sale listings from the VOW feed, for AVM comparables.
+   * Cursor-paginated on ListingKey — see getSyncPage for why (AMPRE rejects
+   * any $skip + $top over 100,000, and this dataset has ~271k rows).
    *
    * Two data-quality traps this guards against:
    *  - CloseDate is unreliable (records carry values like "3549-10-01"), so the
@@ -403,17 +411,17 @@ export class PropTxAdapter implements IMLSAdapter {
    *  - Closed "For Lease" records report a MONTHLY RENT in ClosePrice. Mixing
    *    those into comparables would poison any valuation, so sales only.
    */
-  async getSoldPage(skip: number, limit = 100, since?: Date): Promise<SoldListing[]> {
+  async getSoldPage(cursor: string | null, limit = 100, since?: Date): Promise<SoldListing[]> {
     const clauses = [
       "StandardStatus eq 'Closed'",
       "TransactionType eq 'For Sale'",
     ]
     if (since) clauses.push(`PurchaseContractDate ge ${since.toISOString().slice(0, 10)}`)
+    if (cursor) clauses.push(`ListingKey gt '${cursor.replace(/'/g, "''")}'`)
 
     const data = await reso<{ value: unknown[] }>('Property', {
       $filter:  clauses.join(' and '),
       $top:     String(limit),
-      $skip:    String(skip),
       $select: [
         'ListingKey','StandardStatus','TransactionType',
         'ClosePrice','ListPrice','PurchaseContractDate','CloseDate',

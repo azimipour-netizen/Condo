@@ -141,17 +141,22 @@ async function upsertBatch(properties: PropertySummary[]) {
 const CHECKPOINT      = resolve(process.cwd(), '.sync-checkpoint.json')
 const SOLD_CHECKPOINT = resolve(process.cwd(), '.sync-sold-checkpoint.json')
 
-function readCheckpoint(file = CHECKPOINT): { skip: number; total: number } {
+interface Checkpoint { cursor: string | null; total: number }
+
+function readCheckpoint(file = CHECKPOINT): Checkpoint {
   try {
     const raw = JSON.parse(readFileSync(file, 'utf8'))
-    if (typeof raw.skip === 'number' && typeof raw.total === 'number') return raw
+    // Older checkpoints used a numeric `skip` offset — AMPRE rejects any
+    // $skip + $top over 100,000, so an offset-based checkpoint can never
+    // finish anyway. Discard it and restart with cursor pagination.
+    if (typeof raw.cursor !== 'undefined' && typeof raw.total === 'number') return raw
   } catch { /* no checkpoint yet — start from zero */ }
-  return { skip: 0, total: 0 }
+  return { cursor: null, total: 0 }
 }
 
-function writeCheckpoint(skip: number, total: number, file = CHECKPOINT) {
+function writeCheckpoint(cursor: string | null, total: number, file = CHECKPOINT) {
   try {
-    writeFileSync(file, JSON.stringify({ skip, total, at: new Date().toISOString() }))
+    writeFileSync(file, JSON.stringify({ cursor, total, at: new Date().toISOString() }))
   } catch (err) {
     console.warn(`[sync] checkpoint write failed: ${err}`)
   }
@@ -163,9 +168,9 @@ export async function syncAll(log: (msg: string) => void = console.log): Promise
 
   // Resume from the last completed page so a crash costs one page, not the whole run.
   const cp = readCheckpoint()
-  let skip  = cp.skip
-  let total = cp.total
-  if (skip > 0) log(`[sync] resuming at offset ${skip} (${total} already synced)`)
+  let cursor = cp.cursor
+  let total  = cp.total
+  if (cursor) log(`[sync] resuming after ${cursor} (${total} already synced)`)
 
   // Reuse coordinates already resolved in earlier runs instead of re-geocoding them.
   const known = await (db as any).property.findMany({
@@ -181,14 +186,14 @@ export async function syncAll(log: (msg: string) => void = console.log): Promise
 
   try {
     while (true) {
-      log(`[sync] offset ${skip}…`)
-      const properties = await adapter.getSyncPage(skip, PAGE_SIZE)
+      log(`[sync] after ${cursor ?? '(start)'}…`)
+      const properties = await adapter.getSyncPage(cursor, PAGE_SIZE)
       if (properties.length === 0) break
 
       await upsertBatch(properties)
       total += properties.length
-      skip  += PAGE_SIZE
-      writeCheckpoint(skip, total)
+      cursor = properties[properties.length - 1].id
+      writeCheckpoint(cursor, total)
       log(`[sync] upserted ${total} so far`)
 
       if (properties.length < PAGE_SIZE) break
@@ -206,7 +211,7 @@ export async function syncAll(log: (msg: string) => void = console.log): Promise
       where: { id: job.id },
       data: { status: 'failed', error: String(err), completedAt: new Date() },
     })
-    log(`[sync] failed at offset ${skip} — checkpoint saved, rerun to resume`)
+    log(`[sync] failed after ${cursor ?? '(start)'} — checkpoint saved, rerun to resume`)
     throw err
   }
 
@@ -228,9 +233,9 @@ export async function syncSold(
   const PAGE_SIZE = 100
 
   const cp = readCheckpoint(SOLD_CHECKPOINT)
-  let skip  = cp.skip
-  let total = cp.total
-  if (skip > 0) log(`[sync:sold] resuming at offset ${skip} (${total} already synced)`)
+  let cursor = cp.cursor
+  let total  = cp.total
+  if (cursor) log(`[sync:sold] resuming after ${cursor} (${total} already synced)`)
 
   const known = await (db as any).property.findMany({
     where:  { postalCode: { not: null }, latitude: { not: null } },
@@ -245,15 +250,15 @@ export async function syncSold(
 
   try {
     while (true) {
-      log(`[sync:sold] offset ${skip}…`)
+      log(`[sync:sold] after ${cursor ?? '(start)'}…`)
       const sold: Array<{ summary: PropertySummary; soldPrice: number | null; soldDate: Date | null }> =
-        await adapter.getSoldPage(skip, PAGE_SIZE, since)
+        await adapter.getSoldPage(cursor, PAGE_SIZE, since)
       if (sold.length === 0) break
 
       await upsertSoldBatch(sold)
       total += sold.length
-      skip  += PAGE_SIZE
-      writeCheckpoint(skip, total, SOLD_CHECKPOINT)
+      cursor = sold[sold.length - 1].summary.id
+      writeCheckpoint(cursor, total, SOLD_CHECKPOINT)
       log(`[sync:sold] upserted ${total} so far`)
 
       if (sold.length < PAGE_SIZE) break
@@ -270,7 +275,7 @@ export async function syncSold(
       where: { id: job.id },
       data: { status: 'failed', error: String(err), completedAt: new Date() },
     })
-    log(`[sync:sold] failed at offset ${skip} — checkpoint saved, rerun to resume`)
+    log(`[sync:sold] failed after ${cursor ?? '(start)'} — checkpoint saved, rerun to resume`)
     throw err
   }
 
