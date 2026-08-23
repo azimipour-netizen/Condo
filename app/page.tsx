@@ -35,7 +35,7 @@ export default async function HomePage() {
   const { featured, activeCount, avgPrice } = await getHomeData()
 
   return (
-    <main className="min-h-screen flex flex-col bg-[color:var(--background)]">
+    <main className="flex-1 min-h-0 flex flex-col bg-[color:var(--background)]">
       <SearchHero />
 
       {/* Stats strip */}
