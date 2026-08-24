@@ -1,5 +1,6 @@
 ﻿import type { MetadataRoute } from 'next'
 import { db } from '@/lib/db'
+import { GTA_CITIES } from '@/lib/seo/gta-cities'
 
 const BASE = process.env.NEXT_PUBLIC_APP_URL ?? 'https://condohill.com'
 
@@ -28,6 +29,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE}/open-houses`, changeFrequency: 'daily', priority: 0.8 },
     { url: `${BASE}/mortgage-calculator`, changeFrequency: 'monthly', priority: 0.5 },
     { url: `${BASE}/neighbourhoods`, changeFrequency: 'weekly', priority: 0.7 },
+    { url: `${BASE}/homes-for-sale`, changeFrequency: 'weekly', priority: 0.8 },
+    ...GTA_CITIES.map(c => ({
+      url: `${BASE}/homes-for-sale/${c.slug}`,
+      changeFrequency: 'daily' as const,
+      priority: 0.8,
+    })),
     { url: `${BASE}/privacy`, changeFrequency: 'yearly', priority: 0.2 },
     { url: `${BASE}/terms`, changeFrequency: 'yearly', priority: 0.2 },
   ]

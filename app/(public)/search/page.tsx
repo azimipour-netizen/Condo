@@ -13,6 +13,7 @@ interface Props {
     bedsMin?: string
     type?: string
     neighbourhood?: string
+    city?: string
   }>
 }
 
@@ -20,6 +21,7 @@ export default async function SearchPage({ searchParams }: Props) {
   const sp = await searchParams
   const filters: SearchFilters = {}
 
+  if (sp.city) filters.location = { type: 'city', value: sp.city }
   if (sp.neighbourhood) filters.location = { type: 'neighbourhood', value: sp.neighbourhood }
   if (sp.priceMin) filters.priceMin = parseInt(sp.priceMin)
   if (sp.priceMax) filters.priceMax = parseInt(sp.priceMax)
