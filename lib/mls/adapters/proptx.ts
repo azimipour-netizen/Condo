@@ -137,10 +137,22 @@ function normalize(r: any): Property {
     postalCode:    r.PostalCode ?? null,
   }
 
+  // AMPRE returns one Media row PER SIZE RENDITION of each photo (base, "-l",
+  // "-m", "-nw", "-t" suffixes on MediaKey) — typically 5 rows sharing the
+  // same Order for what is visually one picture. Without deduplicating by
+  // Order, the gallery showed each photo 5 times in a row before moving to
+  // the next one, and a 40-row slice kept only ~8 real photos.
   const mediaItems: Array<{ Order: number; MediaURL: string; MediaCategory?: string; MediaType?: string }> = r.Media ?? []
+  const seenOrders = new Set<number>()
   const images = mediaItems
     .filter(m => (m.MediaCategory ?? 'Photo') === 'Photo' && m.MediaURL)
     .sort((a, b) => (a.Order ?? 0) - (b.Order ?? 0))
+    .filter(m => {
+      const order = m.Order ?? 0
+      if (seenOrders.has(order)) return false
+      seenOrders.add(order)
+      return true
+    })
     .slice(0, 40)
     .map((m, i) => ({ url: m.MediaURL, order: i, alt: null }))
 
