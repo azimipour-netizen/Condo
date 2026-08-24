@@ -59,6 +59,39 @@ export default function PropertyResultsPanel({ result, filters, activeId, onActi
   const [local, setLocal] = useState<LocalFilters>({ bedsMin: null, types: [], priceMax: null })
   const [priceOpen, setPriceOpen] = useState(false)
   const [page, setPage] = useState(1)
+  const [pages, setPages] = useState<Record<number, PropertySummary[]>>({ 1: result.properties })
+  const [loadingPage, setLoadingPage] = useState(false)
+  const [pageError, setPageError] = useState(false)
+  const [retryTick, setRetryTick] = useState(0)
+
+  // A fresh AI search replaces result.properties entirely — drop any cached
+  // pages from the previous search so page 2+ doesn't show stale results.
+  useEffect(() => {
+    setPages({ 1: result.properties })
+    setPage(1)
+  }, [result])
+
+  const totalPages = Math.max(1, Math.ceil(result.total / PAGE_SIZE))
+
+  useEffect(() => {
+    if (pages[page] || page > totalPages) return
+    let cancelled = false
+    setLoadingPage(true)
+    setPageError(false)
+    fetch('/api/properties/page', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filters, page, limit: PAGE_SIZE }),
+    })
+      .then(res => { if (!res.ok) throw new Error('fetch failed'); return res.json() })
+      .then((data: SearchResult) => {
+        if (cancelled) return
+        setPages(prev => ({ ...prev, [page]: data.properties }))
+      })
+      .catch(() => { if (!cancelled) setPageError(true) })
+      .finally(() => { if (!cancelled) setLoadingPage(false) })
+    return () => { cancelled = true }
+  }, [page, pages, filters, totalPages, retryTick])
 
   function toggleCompare(id: string) {
     setCompareIds(prev => {
@@ -105,8 +138,11 @@ export default function PropertyResultsPanel({ result, filters, activeId, onActi
     }
   }
 
+  // Quick-filter chips (beds/type/price) only refine whatever page is
+  // currently loaded — they don't re-query the server, so counts against
+  // result.total below describe "this page", not the full result set.
   const filtered = useMemo(() => {
-    let props = result.properties
+    let props = pages[page] ?? []
     if (local.bedsMin !== null) props = props.filter(p => (p.bedrooms ?? 0) >= local.bedsMin!)
     if (local.types.length > 0) props = props.filter(p => local.types.includes(p.propertyType))
     if (local.priceMax !== null) props = props.filter(p => p.price <= local.priceMax!)
@@ -116,17 +152,9 @@ export default function PropertyResultsPanel({ result, filters, activeId, onActi
     else if (sortBy === 'bedrooms_desc') arr.sort((a, b) => (b.bedrooms ?? 0) - (a.bedrooms ?? 0))
     else if (sortBy === 'listed_desc') arr.sort((a, b) => (b.listedAt ?? '').localeCompare(a.listedAt ?? ''))
     return arr
-  }, [result.properties, local, sortBy])
+  }, [pages, page, local, sortBy])
 
-  // Filtering, sorting, or a fresh search all change what "page 1" means —
-  // staying on e.g. page 4 of a now-shorter list would show an empty page.
-  useEffect(() => { setPage(1) }, [filtered])
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const paged = useMemo(
-    () => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
-    [filtered, page],
-  )
+  const paged = filtered
 
   const hasLocalFilters = local.bedsMin !== null || local.types.length > 0 || local.priceMax !== null
   const activePrice = PRICE_OPTIONS.find(o => o.max === local.priceMax) ?? PRICE_OPTIONS[0]
@@ -138,9 +166,9 @@ export default function PropertyResultsPanel({ result, filters, activeId, onActi
         <div className="flex items-center justify-between mb-3">
           <div>
             <p className="text-sm font-semibold text-[color:var(--foreground)]">
-              {filtered.length !== result.total
-                ? `${filtered.length} of ${result.total.toLocaleString()} ${result.total === 1 ? 'property' : 'properties'}`
-                : `${result.total.toLocaleString()} ${result.total === 1 ? 'property' : 'properties'} found`}
+              {hasLocalFilters
+                ? `${filtered.length} matching on this page · ${result.total.toLocaleString()} ${result.total === 1 ? 'property' : 'properties'} total`
+                : `${result.total.toLocaleString()} ${result.total === 1 ? 'property' : 'properties'} found${totalPages > 1 ? ` · page ${page} of ${totalPages}` : ''}`}
             </p>
             {filters.location?.value && (
               <p className="text-xs text-[color:var(--text-muted)] mt-0.5">Near {filters.location.value}</p>
@@ -347,7 +375,23 @@ export default function PropertyResultsPanel({ result, filters, activeId, onActi
       ) : (
         /* List / Grid view */
         <div className="flex-1 overflow-y-auto px-6 py-5" onClick={() => { setPriceOpen(false); setSortOpen(false) }}>
-          {filtered.length === 0 ? (
+          {!pages[page] && loadingPage ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+              {Array.from({ length: PAGE_SIZE }).map((_, i) => (
+                <div key={i} className="aspect-[4/5] rounded-xl bg-[color:var(--bg-surface)] animate-pulse" />
+              ))}
+            </div>
+          ) : !pages[page] && pageError ? (
+            <div className="text-center py-12 text-[color:var(--text-muted)] text-sm">
+              Couldn&apos;t load this page.
+              <button
+                onClick={() => { setPageError(false); setRetryTick(t => t + 1) }}
+                className="ml-1 text-[color:var(--accent)] hover:underline"
+              >
+                Retry
+              </button>
+            </div>
+          ) : filtered.length === 0 ? (
             <div className="text-center py-12 text-[color:var(--text-muted)] text-sm">
               No properties match these filters.{hasLocalFilters && (
                 <button
