@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { getMLSAdapter } from '@/lib/mls/adapter'
+import { searchListingsDb } from '@/lib/search/db-search'
 import type { SearchFilters } from '@/types/search'
 import SearchPageClient from './SearchPageClient'
 
@@ -28,10 +28,9 @@ export default async function SearchPage({ searchParams }: Props) {
   if (sp.bedsMin) filters.bedroomsMin = parseInt(sp.bedsMin)
   if (sp.type) filters.propertyTypes = [sp.type as import('@/types/property').PropertyType]
 
-  const adapter = getMLSAdapter()
-  let result: Awaited<ReturnType<typeof adapter.searchListings>>
+  let result: Awaited<ReturnType<typeof searchListingsDb>>
   try {
-    result = await adapter.searchListings(filters, 1)
+    result = await searchListingsDb(filters, 1, 20)
   } catch {
     result = { properties: [], total: 0, page: 1, totalPages: 0, appliedFilters: filters }
   }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getMLSAdapter } from '@/lib/mls/adapter'
 import { validateSearchFilters } from '@/lib/search/validators'
+import { searchListingsDb } from '@/lib/search/db-search'
 import { ratelimit, getIP, rateLimitResponse } from '@/lib/ratelimit'
 
 const BodySchema = z.object({
@@ -22,8 +22,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = BodySchema.parse(await req.json())
     const filters = validateSearchFilters(body.filters)
-    const adapter = getMLSAdapter()
-    const result = await adapter.searchListings(filters, body.page, body.limit ?? 20)
+    const result = await searchListingsDb(filters, body.page, body.limit ?? 20)
     return NextResponse.json(result)
   } catch (err) {
     if (err instanceof z.ZodError) {

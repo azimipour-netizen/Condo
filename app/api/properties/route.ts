@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getMLSAdapter } from '@/lib/mls/adapter'
 import { validateSearchFilters } from '@/lib/search/validators'
+import { searchListingsDb } from '@/lib/search/db-search'
 import { ratelimit, getIP, rateLimitResponse } from '@/lib/ratelimit'
 import { z } from 'zod'
 
@@ -39,13 +39,13 @@ export async function GET(req: NextRequest) {
       ...(q.transactionType && { transactionType: q.transactionType }),
       ...(q.propertyType && { propertyTypes: [q.propertyType] }),
       ...(q.neighbourhood && { location: { type: 'neighbourhood', value: q.neighbourhood } }),
+      ...(q.city && { location: { type: 'city', value: q.city } }),
       ...(q.north && q.south && q.east && q.west && {
         location: { type: 'bbox', bbox: { north: q.north, south: q.south, east: q.east, west: q.west } },
       }),
     })
 
-    const adapter = getMLSAdapter()
-    const result = await adapter.searchListings(filters, q.page, q.limit)
+    const result = await searchListingsDb(filters, q.page, q.limit ?? 20)
 
     return NextResponse.json(result)
   } catch (err) {

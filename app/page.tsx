@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import HomeExperience from '@/components/ai/HomeExperience'
 import type { PropertySummary } from '@/types/property'
-import { getMLSAdapter } from '@/lib/mls/adapter'
+import { searchListingsDb } from '@/lib/search/db-search'
 
 export const metadata: Metadata = {
   title: 'Condohill — Toronto Real Estate',
@@ -10,8 +10,7 @@ export const metadata: Metadata = {
 
 async function getHomeData() {
   try {
-    const adapter = getMLSAdapter()
-    const result = await adapter.searchListings({}, 1, 6)
+    const result = await searchListingsDb({}, 1, 6)
     const featured = result.properties as PropertySummary[]
     const activeCount = result.total
     return { featured, activeCount, avgPrice: null }

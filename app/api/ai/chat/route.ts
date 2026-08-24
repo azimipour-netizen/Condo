@@ -4,6 +4,7 @@ import { SYSTEM_PROMPT } from '@/lib/ai/system-prompt'
 import { AI_TOOLS } from '@/lib/ai/tools'
 import { getMLSAdapter } from '@/lib/mls/adapter'
 import { validateSearchFilters } from '@/lib/search/validators'
+import { searchListingsDb } from '@/lib/search/db-search'
 import { ratelimit, getIP, rateLimitResponse } from '@/lib/ratelimit'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
@@ -117,7 +118,11 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
     case 'search_properties': {
       const filters = validateSearchFilters(input.filters)
       const limit = typeof input.limit === 'number' ? Math.min(input.limit, 50) : 20
-      return adapter.searchListings(filters, 1, limit)
+      // DB-backed: local synced Postgres, already geocoded at sync time — no
+      // live AMPRE round trip and no per-result geocoding on the request path.
+      // That external round trip (search + geocode every row) was the
+      // dominant cost in the assistant's ~30s first-response latency.
+      return searchListingsDb(filters, 1, limit)
     }
 
     case 'get_property_details': {
