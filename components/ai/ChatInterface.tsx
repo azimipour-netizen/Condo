@@ -35,6 +35,7 @@ export default function ChatInterface({ initialMessage }: Props) {
   const [searchResult, setSearchResult] = useState<SearchResult | null>(null)
   const [currentFilters, setCurrentFilters] = useState<SearchFilters>({})
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const [showMobileResults, setShowMobileResults] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const hasSentInitial = useRef(false)
@@ -209,9 +210,15 @@ export default function ChatInterface({ initialMessage }: Props) {
     // long pages keep native document scrolling with their footer landing in
     // the right place. That means flex-1 alone can't size this reliably —
     // TopNav is a fixed h-14 (56px), so 100dvh minus that is exact.
-    <div className="h-[calc(100dvh-56px)] flex overflow-hidden">
+    <div className="relative h-[calc(100dvh-56px)] flex overflow-hidden">
       {/* Left: conversation */}
-      <div className="flex flex-col w-full lg:w-[420px] xl:w-[480px] border-r border-[color:var(--border)] bg-[color:var(--bg-surface)] shrink-0">
+      {/* Below lg, the results column is hidden entirely, so this is the
+          only pane a mobile visitor ever sees — the AI could describe a
+          dozen matches and no property cards would ever be reachable.
+          showMobileResults swaps which pane occupies the full mobile
+          viewport, mirroring the map search page's Show results/Show map
+          toggle. */}
+      <div className={`${showMobileResults ? 'hidden' : 'flex'} lg:flex flex-col w-full lg:w-[420px] xl:w-[480px] border-r border-[color:var(--border)] bg-[color:var(--bg-surface)] shrink-0`}>
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
           {messages.length === 0 && (
@@ -283,13 +290,34 @@ export default function ChatInterface({ initialMessage }: Props) {
       </div>
 
       {/* Right: results */}
-      <div className="hidden lg:flex flex-1 flex-col overflow-hidden bg-[color:var(--background)]">
+      <div className={`${showMobileResults ? 'flex' : 'hidden'} lg:flex flex-1 flex-col overflow-hidden bg-[color:var(--background)]`}>
         {hasResults ? (
           <PropertyResultsPanel result={searchResult} filters={currentFilters} />
         ) : (
           <EmptyResultsState hasStarted={messages.length > 0} />
         )}
       </div>
+
+      {/* Mobile chat/results toggle — desktop always shows both panes side by side */}
+      {messages.length > 0 && (
+      <button
+        type="button"
+        onClick={() => setShowMobileResults(v => !v)}
+        className="lg:hidden absolute bottom-24 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 bg-[color:var(--foreground)] text-[color:var(--background)] text-sm font-semibold px-4 py-2.5 rounded-full shadow-lg"
+      >
+        {showMobileResults ? (
+          <>
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9 3L4 7L9 11" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            Back to chat
+          </>
+        ) : (
+          <>
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="2" y="2" width="4" height="4" rx="1" stroke="currentColor" strokeWidth="1.4" /><rect x="8" y="2" width="4" height="4" rx="1" stroke="currentColor" strokeWidth="1.4" /><rect x="2" y="8" width="4" height="4" rx="1" stroke="currentColor" strokeWidth="1.4" /><rect x="8" y="8" width="4" height="4" rx="1" stroke="currentColor" strokeWidth="1.4" /></svg>
+            {hasResults ? `Show ${searchResult.properties.length} result${searchResult.properties.length !== 1 ? 's' : ''}` : 'Show results'}
+          </>
+        )}
+      </button>
+      )}
     </div>
   )
 }
