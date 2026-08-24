@@ -14,10 +14,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       select: { price: true, recordedAt: true },
     })
 
-    // If no recorded history, seed from current property price
+    // If no recorded history, seed from current property price. `id` is the
+    // AMPRE ListingKey (matches propertyId above and every other route's
+    // convention) — not Property's own UUID primary key.
     if (history.length === 0) {
       const prop = await (db as any).property.findUnique({
-        where: { id },
+        where: { listingId: id },
         select: { price: true, listedAt: true },
       })
       if (prop) {

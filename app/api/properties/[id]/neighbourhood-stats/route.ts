@@ -8,8 +8,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const { id } = await params
   try {
+    // `id` here is the AMPRE ListingKey (matches the URL convention used by
+    // every other /api/properties/[id]/* route) — not the DB's own UUID.
     const property = await (db as any).property.findUnique({
-      where: { id },
+      where: { listingId: id },
       select: { neighbourhood: true, city: true, propertyType: true },
     })
     if (!property) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -18,7 +20,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       status: 'active',
       city: property.city,
       propertyType: property.propertyType,
-      id: { not: id },
+      listingId: { not: id },
     }
     if (property.neighbourhood) where.neighbourhood = property.neighbourhood
 
