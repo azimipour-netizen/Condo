@@ -7,7 +7,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const [properties, blogPosts] = await Promise.all([
     (db as any).property.findMany({
       where: { status: 'active' },
-      select: { id: true, updatedAt: true },
+      // /property/[id] resolves against AMPRE's ListingKey, not our own row
+      // id — every property URL in the sitemap was a 404 waiting to happen.
+      select: { listingId: true, updatedAt: true },
       orderBy: { updatedAt: 'desc' },
       take: 5000,
     }),
@@ -30,8 +32,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE}/terms`, changeFrequency: 'yearly', priority: 0.2 },
   ]
 
-  const propertyUrls: MetadataRoute.Sitemap = properties.map((p: { id: string; updatedAt: Date }) => ({
-    url: `${BASE}/property/${p.id}`,
+  const propertyUrls: MetadataRoute.Sitemap = properties.map((p: { listingId: string; updatedAt: Date }) => ({
+    url: `${BASE}/property/${p.listingId}`,
     lastModified: p.updatedAt,
     changeFrequency: 'daily' as const,
     priority: 0.8,
