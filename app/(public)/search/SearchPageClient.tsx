@@ -100,10 +100,11 @@ export default function SearchPageClient({ initialResult, initialFilters, initia
   const suppressMapSearch = useRef(false)
   const filterRef = useRef<HTMLDivElement>(null)
 
-  const search = useCallback(async (nextFilters: SearchFilters) => {
+  const search = useCallback(async (nextFilters: SearchFilters, page = 1) => {
     setLoading(true)
     try {
       const params = new URLSearchParams()
+      if (page > 1) params.set('page', String(page))
       if (nextFilters.location?.value) params.set('neighbourhood', nextFilters.location.value)
       if (nextFilters.priceMin) params.set('priceMin', String(nextFilters.priceMin))
       if (nextFilters.priceMax) params.set('priceMax', String(nextFilters.priceMax))
@@ -130,6 +131,10 @@ export default function SearchPageClient({ initialResult, initialFilters, initia
       setLoading(false)
     }
   }, [])
+
+  const handlePageChange = useCallback((page: number) => {
+    search(filters, page)
+  }, [filters, search])
 
   function applyFilters() {
     suppressMapSearch.current = true

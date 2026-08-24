@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import type { SearchResult, SearchFilters } from '@/types/search'
 import PropertyCard from './PropertyCard'
@@ -16,6 +16,8 @@ interface Props {
 }
 
 type ViewMode = 'list' | 'grid' | 'map'
+
+const PAGE_SIZE = 20
 
 const PROPERTY_TYPES = [
   { key: 'detached', label: 'Detached' },
@@ -56,6 +58,7 @@ export default function PropertyResultsPanel({ result, filters, activeId, onActi
   const [compareIds, setCompareIds] = useState<Set<string>>(new Set())
   const [local, setLocal] = useState<LocalFilters>({ bedsMin: null, types: [], priceMax: null })
   const [priceOpen, setPriceOpen] = useState(false)
+  const [page, setPage] = useState(1)
 
   function toggleCompare(id: string) {
     setCompareIds(prev => {
@@ -114,6 +117,16 @@ export default function PropertyResultsPanel({ result, filters, activeId, onActi
     else if (sortBy === 'listed_desc') arr.sort((a, b) => (b.listedAt ?? '').localeCompare(a.listedAt ?? ''))
     return arr
   }, [result.properties, local, sortBy])
+
+  // Filtering, sorting, or a fresh search all change what "page 1" means —
+  // staying on e.g. page 4 of a now-shorter list would show an empty page.
+  useEffect(() => { setPage(1) }, [filtered])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const paged = useMemo(
+    () => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [filtered, page],
+  )
 
   const hasLocalFilters = local.bedsMin !== null || local.types.length > 0 || local.priceMax !== null
   const activePrice = PRICE_OPTIONS.find(o => o.max === local.priceMax) ?? PRICE_OPTIONS[0]
@@ -346,34 +359,88 @@ export default function PropertyResultsPanel({ result, filters, activeId, onActi
               )}
             </div>
           ) : (
-            <div
-              className={
-                view === 'grid'
-                  ? 'grid grid-cols-1 xl:grid-cols-2 gap-4'
-                  : 'flex flex-col gap-3'
-              }
-            >
-              {filtered.map((p: PropertySummary) => (
-                <div
-                  key={p.id}
-                  id={`card-${p.id}`}
-                  onMouseEnter={() => onActiveChange?.(p.id)}
-                  onMouseLeave={() => onActiveChange?.(null)}
-                >
-                  <PropertyCard
-                    property={p}
-                    compact={view === 'list'}
-                    isSelected={compareIds.has(p.id)}
-                    isActive={activeId === p.id}
-                    onToggleCompare={() => toggleCompare(p.id)}
-                    canCompare={compareIds.size < 4 || compareIds.has(p.id)}
-                  />
-                </div>
-              ))}
-            </div>
+            <>
+              <div
+                className={
+                  view === 'grid'
+                    ? 'grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4'
+                    : 'flex flex-col gap-3'
+                }
+              >
+                {paged.map((p: PropertySummary) => (
+                  <div
+                    key={p.id}
+                    id={`card-${p.id}`}
+                    onMouseEnter={() => onActiveChange?.(p.id)}
+                    onMouseLeave={() => onActiveChange?.(null)}
+                  >
+                    <PropertyCard
+                      property={p}
+                      compact={view === 'list'}
+                      isSelected={compareIds.has(p.id)}
+                      isActive={activeId === p.id}
+                      onToggleCompare={() => toggleCompare(p.id)}
+                      canCompare={compareIds.size < 4 || compareIds.has(p.id)}
+                    />
+                  </div>
+                ))}
+              </div>
+              {totalPages > 1 && (
+                <Pagination page={page} totalPages={totalPages} onChange={setPage} />
+              )}
+            </>
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+function Pagination({ page, totalPages, onChange }: { page: number; totalPages: number; onChange: (p: number) => void }) {
+  const pages: (number | '…')[] = []
+  const window = 1
+  for (let i = 1; i <= totalPages; i++) {
+    if (i === 1 || i === totalPages || (i >= page - window && i <= page + window)) {
+      pages.push(i)
+    } else if (pages[pages.length - 1] !== '…') {
+      pages.push('…')
+    }
+  }
+
+  return (
+    <div className="flex items-center justify-center gap-1 pt-6">
+      <button
+        onClick={() => onChange(Math.max(1, page - 1))}
+        disabled={page === 1}
+        className="px-2.5 py-1.5 text-sm rounded-lg text-[color:var(--text-muted)] hover:bg-[color:var(--bg-surface)] disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+      >
+        Prev
+      </button>
+      {pages.map((p, i) =>
+        p === '…' ? (
+          <span key={`ellipsis-${i}`} className="px-2 text-sm text-[color:var(--text-faint)]">…</span>
+        ) : (
+          <button
+            key={p}
+            onClick={() => onChange(p)}
+            className={[
+              'min-w-[32px] px-2 py-1.5 text-sm rounded-lg transition-colors',
+              p === page
+                ? 'bg-[color:var(--accent)] text-white font-medium'
+                : 'text-[color:var(--text-muted)] hover:bg-[color:var(--bg-surface)]',
+            ].join(' ')}
+          >
+            {p}
+          </button>
+        )
+      )}
+      <button
+        onClick={() => onChange(Math.min(totalPages, page + 1))}
+        disabled={page === totalPages}
+        className="px-2.5 py-1.5 text-sm rounded-lg text-[color:var(--text-muted)] hover:bg-[color:var(--bg-surface)] disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+      >
+        Next
+      </button>
     </div>
   )
 }
