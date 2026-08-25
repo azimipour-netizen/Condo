@@ -1,22 +1,7 @@
 /**
- * Run on VPS: node scripts/seed-posts-buyer-guide-2.mjs
+ * Run on VPS: node --env-file=.env scripts/seed-posts-buyer-guide-2.mjs
  */
 import { createRequire } from 'module'
-import { readFileSync } from 'fs'
-import { join, dirname } from 'path'
-import { fileURLToPath } from 'url'
-
-// Load .env manually (no dotenv dependency needed)
-const __dirname = dirname(fileURLToPath(import.meta.url))
-try {
-  const envPath = join(__dirname, '..', '.env')
-  const envContent = readFileSync(envPath, 'utf8')
-  for (const line of envContent.split('\n')) {
-    const match = line.match(/^([^#=]+)=(.*)$/)
-    if (match) process.env[match[1].trim()] = match[2].trim().replace(/^["']|["']$/g, '')
-  }
-} catch {}
-
 import { PrismaPg } from '@prisma/adapter-pg'
 import { Pool } from 'pg'
 const require = createRequire(import.meta.url)
