@@ -12,6 +12,7 @@ interface PostRow {
   slug: string
   title: string
   summary: string
+  metaDescription: string | null
   body: string
   coverImageUrl: string | null
   citySlug: string | null
@@ -60,10 +61,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!post) return {}
   return {
     title: post.title,
-    description: post.summary,
+    description: post.metaDescription ?? post.summary,
     openGraph: {
       title: post.title,
-      description: post.summary,
+      description: post.metaDescription ?? post.summary,
       type: 'article',
       publishedTime: post.publishedAt?.toISOString(),
       images: post.coverImageUrl ? [{ url: post.coverImageUrl }] : undefined,

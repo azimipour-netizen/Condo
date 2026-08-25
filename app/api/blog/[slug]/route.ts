@@ -10,6 +10,7 @@ const UpdateSchema = z.object({
   published: z.boolean().optional(),
   coverImageUrl: z.string().url().nullable().optional(),
   citySlug: z.string().nullable().optional(),
+  metaDescription: z.string().max(160).nullable().optional(),
 })
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {

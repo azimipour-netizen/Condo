@@ -12,6 +12,7 @@ const CreateSchema = z.object({
   published: z.boolean().default(false),
   coverImageUrl: z.string().url().nullable().optional(),
   citySlug: z.string().nullable().optional(),
+  metaDescription: z.string().max(160).nullable().optional(),
 })
 
 export async function GET(req: NextRequest) {

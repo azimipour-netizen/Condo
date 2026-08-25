@@ -23,6 +23,7 @@ interface InitialValues {
   published?: boolean
   coverImageUrl?: string | null
   citySlug?: string | null
+  metaDescription?: string | null
 }
 
 export default function BlogEditor({ initial }: { initial?: InitialValues }) {
@@ -37,6 +38,7 @@ export default function BlogEditor({ initial }: { initial?: InitialValues }) {
     published: initial?.published ?? false,
     coverImageUrl: initial?.coverImageUrl ?? '',
     citySlug: initial?.citySlug ?? '',
+    metaDescription: initial?.metaDescription ?? '',
   })
   const [slugManual, setSlugManual] = useState(isEdit)
   const [saving, setSaving] = useState(false)
@@ -62,6 +64,7 @@ export default function BlogEditor({ initial }: { initial?: InitialValues }) {
       ...form,
       coverImageUrl: form.coverImageUrl.trim() || null,
       citySlug: form.citySlug || null,
+      metaDescription: form.metaDescription.trim() || null,
     }
 
     try {
@@ -72,6 +75,7 @@ export default function BlogEditor({ initial }: { initial?: InitialValues }) {
             body: JSON.stringify({
               title: payload.title, summary: payload.summary, body: payload.body,
               published: payload.published, coverImageUrl: payload.coverImageUrl, citySlug: payload.citySlug,
+              metaDescription: payload.metaDescription,
             }),
           })
         : await fetch('/api/blog', {
@@ -129,6 +133,26 @@ export default function BlogEditor({ initial }: { initial?: InitialValues }) {
             Summary * <span className="text-xs font-normal text-[color:var(--text-muted)]">(shown on index, max 500 chars)</span>
           </label>
           <textarea required rows={3} maxLength={500} value={form.summary} onChange={set('summary')} className={inputCls} />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-[color:var(--foreground)] mb-1.5">
+            Meta description{' '}
+            <span className="text-xs font-normal text-[color:var(--text-muted)]">
+              (used in Google search snippet — max 160 chars, leave blank to use summary)
+            </span>
+          </label>
+          <textarea
+            rows={2}
+            maxLength={160}
+            value={form.metaDescription}
+            onChange={set('metaDescription')}
+            className={inputCls}
+            placeholder="Concise search-result description, max 160 characters…"
+          />
+          <p className="text-xs text-[color:var(--text-faint)] mt-1 text-right">
+            {form.metaDescription.length}/160
+          </p>
         </div>
 
         <div className="grid sm:grid-cols-2 gap-4">

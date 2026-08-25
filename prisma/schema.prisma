@@ -344,9 +344,10 @@ model BlogPost {
   id          String   @id @default(uuid())
   slug        String   @unique
   title       String
-  summary     String
-  body        String   @db.Text
-  coverImageUrl String?
+  summary        String
+  metaDescription String?
+  body           String   @db.Text
+  coverImageUrl  String?
   // Optional GTA_CITIES slug (lib/seo/gta-cities.ts) tagging this post to one
   // city — drives the "homes for sale in X" sidebar CTA and same-city related
   // posts. Null for general/GTA-wide content.
