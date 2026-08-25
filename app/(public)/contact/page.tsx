@@ -2,12 +2,17 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import Turnstile, { TURNSTILE_ENABLED } from '@/components/security/Turnstile'
 
 const inputCls = "w-full bg-[color:var(--bg-surface-2)] border border-[color:var(--border)] rounded-xl px-3 py-2.5 text-sm text-[color:var(--foreground)] outline-none focus:border-[color:var(--accent)] transition-colors placeholder:text-[color:var(--text-faint)]"
 
 export default function ContactPage() {
   const [form, setForm] = useState({ name: '', email: '', phone: '', subject: '', message: '' })
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
+  const [errorMsg, setErrorMsg] = useState('')
+  const [turnstileToken, setTurnstileToken] = useState('')
+  // Honeypot: hidden from real users; bots that autofill every field trip it.
+  const [company, setCompany] = useState('')
 
   function set(key: keyof typeof form) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
@@ -16,15 +21,29 @@ export default function ContactPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    setErrorMsg('')
+
+    if (TURNSTILE_ENABLED && !turnstileToken) {
+      setErrorMsg('Please complete the verification check.')
+      return
+    }
+
     setStatus('sending')
     try {
       const res = await fetch('/api/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, turnstileToken, company }),
       })
-      setStatus(res.ok ? 'sent' : 'error')
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        setErrorMsg(body.error ?? 'Something went wrong. Please try again or email us directly.')
+        setStatus('error')
+        return
+      }
+      setStatus('sent')
     } catch {
+      setErrorMsg('Something went wrong. Please try again or email us directly.')
       setStatus('error')
     }
   }
@@ -100,8 +119,24 @@ export default function ContactPage() {
             />
           </div>
 
-          {status === 'error' && (
-            <p className="text-sm text-red-500">Something went wrong. Please try again or email us directly.</p>
+          {/* Honeypot — visually hidden, never shown to real users */}
+          <div aria-hidden="true" className="absolute -left-[9999px] top-0 h-0 w-0 overflow-hidden">
+            <label htmlFor="company">Company</label>
+            <input
+              id="company"
+              name="company"
+              type="text"
+              tabIndex={-1}
+              autoComplete="off"
+              value={company}
+              onChange={e => setCompany(e.target.value)}
+            />
+          </div>
+
+          <Turnstile onVerify={setTurnstileToken} />
+
+          {errorMsg && (
+            <p className="text-sm text-red-500">{errorMsg}</p>
           )}
 
           <button

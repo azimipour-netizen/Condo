@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { notify } from '@/lib/notify'
 import { ratelimit, getIP, rateLimitResponse } from '@/lib/ratelimit'
 import { sendEmail, emailContactConfirmation } from '@/lib/email'
+import { verifyTurnstile } from '@/lib/security/turnstile'
 
 const Schema = z.object({
   name: z.string().min(2).max(100),
@@ -11,6 +12,9 @@ const Schema = z.object({
   phone: z.string().max(20).optional(),
   subject: z.string().min(3).max(200),
   message: z.string().min(10).max(3000),
+  turnstileToken: z.string().optional(),
+  // Honeypot: hidden from real users, so anything here is a bot.
+  company: z.string().max(200).optional(),
 })
 
 export async function POST(req: NextRequest) {
@@ -18,7 +22,18 @@ export async function POST(req: NextRequest) {
   if (!rl.success) return rateLimitResponse(rl.resetAt)
   try {
     const body = await req.json()
-    const data = Schema.parse(body)
+    const { turnstileToken, company, ...data } = Schema.parse(body)
+
+    // Honeypot tripped — pretend it worked so the bot does not learn to retry.
+    if (company) {
+      console.warn(`[contact] honeypot tripped from ${getIP(req)}`)
+      return NextResponse.json({ ok: true })
+    }
+
+    const human = await verifyTurnstile(turnstileToken, getIP(req))
+    if (!human) {
+      return NextResponse.json({ error: 'Verification failed. Please try again.' }, { status: 400 })
+    }
 
     await (db as any).contactInquiry.create({ data })
 
