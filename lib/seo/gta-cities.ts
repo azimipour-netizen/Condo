@@ -16,12 +16,15 @@ export interface GtaCity {
   name: string
   /** Exact Property.city match, or null for Toronto's startsWith case. */
   dbValue: string | null
+  /** Multiple exact Property.city values (e.g. Toronto sub-districts for a neighbourhood). */
+  dbValues?: string[]
   /** One line of real, defensible local color — not filler. */
   blurb: string
 }
 
 export const GTA_CITIES: GtaCity[] = [
   { slug: 'toronto',        name: 'Toronto',        dbValue: null,             blurb: 'Canada\'s largest city — from downtown high-rises to family neighbourhoods across the old City of Toronto, North York, Scarborough, Etobicoke, York, and East York.' },
+  { slug: 'north-york',    name: 'North York',     dbValue: null,             dbValues: ['Toronto C06', 'Toronto C07', 'Toronto C14', 'Toronto C15'], blurb: 'A former city now part of Toronto, stretching from Steeles Avenue to Lawrence Avenue — home to Willowdale, Bayview Village, Bathurst Manor, and some of the city\'s most sought-after school catchments.' },
   { slug: 'mississauga',    name: 'Mississauga',     dbValue: 'Mississauga',    blurb: 'The GTA\'s second-largest city, anchored by Square One and a growing downtown core along the Hurontario LRT corridor.' },
   { slug: 'brampton',       name: 'Brampton',        dbValue: 'Brampton',       blurb: 'One of Canada\'s fastest-growing cities, known for new-build subdivisions and a large, established South Asian community.' },
   { slug: 'vaughan',        name: 'Vaughan',         dbValue: 'Vaughan',        blurb: 'Home to Vaughan Mills and Canada\'s Wonderland, with newer master-planned communities and strong transit growth around the Vaughan subway extension.' },
@@ -51,5 +54,6 @@ export function findGtaCity(slug: string): GtaCity | undefined {
 
 /** Prisma `where` clause fragment for this city's Property.city field. */
 export function cityWhereClause(city: GtaCity): Record<string, unknown> {
+  if (city.dbValues) return { city: { in: city.dbValues } }
   return city.dbValue ? { city: city.dbValue } : { city: { startsWith: 'Toronto' } }
 }

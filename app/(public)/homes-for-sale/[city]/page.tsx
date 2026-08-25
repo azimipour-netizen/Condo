@@ -18,9 +18,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { city: slug } = await params
   const city = findGtaCity(slug)
   if (!city) return { title: 'Not Found' }
+  const isNorthYork = city.slug === 'north-york'
   return {
-    title: `Homes for Sale in ${city.name} | Condohill`,
-    description: `Browse active MLS® listings for sale in ${city.name}, Ontario. Real-time prices, photos, and property details for houses, condos, and townhouses.`,
+    title: isNorthYork
+      ? `North York Real Estate | Homes for Sale in North York | Condohill`
+      : `Homes for Sale in ${city.name} | Condohill`,
+    description: isNorthYork
+      ? `Browse active MLS® listings in North York, Toronto — houses, condos, and townhouses in Willowdale, Bayview Village, Bathurst Manor, and surrounding neighbourhoods.`
+      : `Browse active MLS® listings for sale in ${city.name}, Ontario. Real-time prices, photos, and property details for houses, condos, and townhouses.`,
   }
 }
 
@@ -120,7 +125,9 @@ export default async function CityLandingPage({ params }: Props) {
 
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-[color:var(--foreground)]">Homes for Sale in {city.name}</h1>
+        <h1 className="text-3xl font-bold text-[color:var(--foreground)]">
+          {city.slug === 'north-york' ? 'North York Real Estate' : `Homes for Sale in ${city.name}`}
+        </h1>
         <p className="mt-2 text-base text-[color:var(--text-muted)] max-w-2xl">{city.blurb}</p>
       </div>
 
