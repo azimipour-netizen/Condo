@@ -6,8 +6,11 @@ import PropertyCard from '@/components/property/PropertyCard'
 import type { PropertySummary, PropertyType } from '@/types/property'
 import { GTA_CITIES, findGtaCity, cityWhereClause, type GtaCity } from '@/lib/seo/gta-cities'
 
+const PER_PAGE = 24
+
 interface Props {
   params: Promise<{ city: string }>
+  searchParams: Promise<{ page?: string }>
 }
 
 export function generateStaticParams() {
@@ -21,8 +24,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const isNorthYork = city.slug === 'north-york'
   return {
     title: isNorthYork
-      ? `North York Real Estate | Homes for Sale in North York | Condohill`
-      : `Homes for Sale in ${city.name} | Condohill`,
+      ? `North York Real Estate | Homes for Sale in North York`
+      : `Homes for Sale in ${city.name}`,
     description: isNorthYork
       ? `Browse active MLS® listings in North York, Toronto — houses, condos, and townhouses in Willowdale, Bayview Village, Bathurst Manor, and surrounding neighbourhoods.`
       : `Browse active MLS® listings for sale in ${city.name}, Ontario. Real-time prices, photos, and property details for houses, condos, and townhouses.`,
@@ -41,7 +44,7 @@ function fmtPrice(n: number) {
   return `$${Math.round(n / 1000)}K`
 }
 
-async function getCityData(city: GtaCity) {
+async function getCityData(city: GtaCity, page: number) {
   const where = { status: 'active', transactionType: 'sale', ...cityWhereClause(city) }
   try {
     const [listingsRaw, stats, typeCounts] = await Promise.all([
@@ -49,7 +52,8 @@ async function getCityData(city: GtaCity) {
       (db as any).property.findMany({
         where,
         orderBy: { listedAt: 'desc' },
-        take: 9,
+        skip: (page - 1) * PER_PAGE,
+        take: PER_PAGE,
         select: {
           id: true, listingId: true, title: true, status: true, price: true,
           propertyType: true, transactionType: true, bedrooms: true,
@@ -104,12 +108,15 @@ async function getCityData(city: GtaCity) {
   }
 }
 
-export default async function CityLandingPage({ params }: Props) {
+export default async function CityLandingPage({ params, searchParams }: Props) {
   const { city: slug } = await params
+  const { page: pageParam } = await searchParams
   const city = findGtaCity(slug)
   if (!city) notFound()
 
-  const { listings, count, avgPrice, minPrice, maxPrice, typeCountMap } = await getCityData(city)
+  const page = Math.max(1, parseInt(pageParam ?? '1', 10) || 1)
+  const { listings, count, avgPrice, minPrice, maxPrice, typeCountMap } = await getCityData(city, page)
+  const totalPages = Math.ceil(count / PER_PAGE)
   const otherCities = GTA_CITIES.filter(c => c.slug !== city.slug).slice(0, 8)
 
   return (
@@ -177,22 +184,44 @@ export default async function CityLandingPage({ params }: Props) {
       {/* Listings */}
       <div className="mb-6 flex items-center justify-between">
         <h2 className="text-xl font-bold text-[color:var(--foreground)]">
-          {count > 0 ? `${count.toLocaleString()} Active Listing${count !== 1 ? 's' : ''}` : 'No active listings'}
+          {count > 0
+            ? `${count.toLocaleString()} Active Listing${count !== 1 ? 's' : ''}${totalPages > 1 ? ` — page ${page} of ${totalPages}` : ''}`
+            : 'No active listings'}
         </h2>
-        <Link
-          href={`/search?city=${encodeURIComponent(city.dbValue ?? city.name)}`}
-          className="text-sm text-[color:var(--accent)] hover:underline font-medium"
-        >
-          View all →
-        </Link>
       </div>
 
       {listings.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {(listings as PropertySummary[]).map(p => (
-            <PropertyCard key={p.id} property={p} />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {(listings as PropertySummary[]).map(p => (
+              <PropertyCard key={p.id} property={p} />
+            ))}
+          </div>
+
+          {totalPages > 1 && (
+            <div className="mt-10 flex items-center justify-center gap-2">
+              {page > 1 && (
+                <Link
+                  href={`/homes-for-sale/${city.slug}?page=${page - 1}`}
+                  className="px-4 py-2 text-sm border border-[color:var(--border)] rounded-xl text-[color:var(--foreground)] hover:border-[color:var(--accent)] transition-colors"
+                >
+                  ← Previous
+                </Link>
+              )}
+              <span className="text-sm text-[color:var(--text-muted)] px-3">
+                {page} / {totalPages}
+              </span>
+              {page < totalPages && (
+                <Link
+                  href={`/homes-for-sale/${city.slug}?page=${page + 1}`}
+                  className="px-4 py-2 text-sm border border-[color:var(--border)] rounded-xl text-[color:var(--foreground)] hover:border-[color:var(--accent)] transition-colors"
+                >
+                  Next →
+                </Link>
+              )}
+            </div>
+          )}
+        </>
       ) : (
         <div className="bg-[color:var(--bg-surface)] border border-[color:var(--border)] rounded-2xl p-12 text-center">
           <p className="text-sm text-[color:var(--text-muted)]">No active listings in {city.name} right now.</p>
