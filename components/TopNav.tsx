@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useSession, signOut } from 'next-auth/react'
 
 const NAV_LINKS = [
@@ -38,11 +39,7 @@ export default function TopNav() {
     <>
       <header className="flex items-center justify-between px-5 h-14 border-b border-[color:var(--border)] bg-[color:var(--bg-surface)] shrink-0 z-40 relative">
         <Link href="/" className="flex items-center gap-2">
-          <span className="w-6 h-6 rounded-md bg-[color:var(--accent)] flex items-center justify-center">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <path d="M7 1L9 5H13L10 8L11 12L7 10L3 12L4 8L1 5H5L7 1Z" fill="white" />
-            </svg>
-          </span>
+          <Image src="/logo-mark.png" alt="" width={32} height={32} priority className="w-8 h-8" />
           <span className="text-sm font-semibold text-[color:var(--foreground)]">Condohill</span>
         </Link>
 

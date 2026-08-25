@@ -8,6 +8,8 @@ const UpdateSchema = z.object({
   summary: z.string().min(10).max(500).optional(),
   body: z.string().min(20).optional(),
   published: z.boolean().optional(),
+  coverImageUrl: z.string().url().nullable().optional(),
+  citySlug: z.string().nullable().optional(),
 })
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {

@@ -8,7 +8,7 @@ export default async function EditBlogPostPage({ params }: Props) {
   const { slug } = await params
   const post = await (db as any).blogPost.findUnique({
     where: { slug },
-    select: { slug: true, title: true, summary: true, body: true, published: true },
+    select: { slug: true, title: true, summary: true, body: true, published: true, coverImageUrl: true, citySlug: true },
   })
   if (!post) notFound()
 

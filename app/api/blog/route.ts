@@ -10,6 +10,8 @@ const CreateSchema = z.object({
   body: z.string().min(20),
   slug: z.string().regex(/^[a-z0-9-]+$/).min(3).max(120),
   published: z.boolean().default(false),
+  coverImageUrl: z.string().url().nullable().optional(),
+  citySlug: z.string().nullable().optional(),
 })
 
 export async function GET(req: NextRequest) {

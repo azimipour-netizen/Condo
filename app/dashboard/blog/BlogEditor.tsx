@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { GTA_CITIES } from '@/lib/seo/gta-cities'
 
 const inputCls = "w-full bg-[color:var(--bg-surface-2)] border border-[color:var(--border)] rounded-xl px-3 py-2.5 text-sm text-[color:var(--foreground)] outline-none focus:border-[color:var(--accent)] transition-colors"
 
@@ -20,6 +21,8 @@ interface InitialValues {
   summary?: string
   body?: string
   published?: boolean
+  coverImageUrl?: string | null
+  citySlug?: string | null
 }
 
 export default function BlogEditor({ initial }: { initial?: InitialValues }) {
@@ -32,6 +35,8 @@ export default function BlogEditor({ initial }: { initial?: InitialValues }) {
     summary: initial?.summary ?? '',
     body: initial?.body ?? '',
     published: initial?.published ?? false,
+    coverImageUrl: initial?.coverImageUrl ?? '',
+    citySlug: initial?.citySlug ?? '',
   })
   const [slugManual, setSlugManual] = useState(isEdit)
   const [saving, setSaving] = useState(false)
@@ -53,17 +58,26 @@ export default function BlogEditor({ initial }: { initial?: InitialValues }) {
     setSaving(true)
     setError('')
 
+    const payload = {
+      ...form,
+      coverImageUrl: form.coverImageUrl.trim() || null,
+      citySlug: form.citySlug || null,
+    }
+
     try {
       const res = isEdit
         ? await fetch(`/api/blog/${initial!.slug}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title: form.title, summary: form.summary, body: form.body, published: form.published }),
+            body: JSON.stringify({
+              title: payload.title, summary: payload.summary, body: payload.body,
+              published: payload.published, coverImageUrl: payload.coverImageUrl, citySlug: payload.citySlug,
+            }),
           })
         : await fetch('/api/blog', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(form),
+            body: JSON.stringify(payload),
           })
 
       const data = await res.json()
@@ -115,6 +129,31 @@ export default function BlogEditor({ initial }: { initial?: InitialValues }) {
             Summary * <span className="text-xs font-normal text-[color:var(--text-muted)]">(shown on index, max 500 chars)</span>
           </label>
           <textarea required rows={3} maxLength={500} value={form.summary} onChange={set('summary')} className={inputCls} />
+        </div>
+
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-[color:var(--foreground)] mb-1.5">
+              Cover image URL <span className="text-xs font-normal text-[color:var(--text-muted)]">(optional)</span>
+            </label>
+            <input type="url" value={form.coverImageUrl} onChange={set('coverImageUrl')} className={inputCls}
+              placeholder="https://..." />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[color:var(--foreground)] mb-1.5">
+              City <span className="text-xs font-normal text-[color:var(--text-muted)]">(optional — drives the &quot;homes for sale&quot; sidebar)</span>
+            </label>
+            <select
+              value={form.citySlug}
+              onChange={e => setForm(f => ({ ...f, citySlug: e.target.value }))}
+              className={inputCls}
+            >
+              <option value="">None — general GTA content</option>
+              {GTA_CITIES.map(c => (
+                <option key={c.slug} value={c.slug}>{c.name}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
