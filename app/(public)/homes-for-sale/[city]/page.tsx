@@ -231,30 +231,69 @@ export default async function CityLandingPage({ params, searchParams }: Props) {
         </div>
       )}
 
-      {/* Related tools & other cities — internal linking per SEO strategy */}
-      <div className="mt-14 grid sm:grid-cols-2 gap-8 pt-8 border-t border-[color:var(--border)]">
-        <div>
-          <h3 className="text-sm font-semibold text-[color:var(--foreground)] mb-3">Tools</h3>
-          <ul className="space-y-2 text-sm">
-            <li><Link href="/mortgage-calculator" className="text-[color:var(--accent)] hover:underline">Mortgage calculator</Link></li>
-            <li><Link href="/open-houses" className="text-[color:var(--accent)] hover:underline">Upcoming open houses</Link></li>
-            <li><Link href="/neighbourhoods" className="text-[color:var(--accent)] hover:underline">Browse by neighbourhood</Link></li>
-          </ul>
-        </div>
-        <div>
-          <h3 className="text-sm font-semibold text-[color:var(--foreground)] mb-3">Nearby cities</h3>
-          <div className="flex flex-wrap gap-2">
-            {otherCities.map(c => (
-              <Link
-                key={c.slug}
-                href={`/homes-for-sale/${c.slug}`}
-                className="text-sm text-[color:var(--text-muted)] hover:text-[color:var(--accent)] transition-colors"
-              >
-                {c.name}
-              </Link>
-            ))}
+      {/* Internal + external linking — SEO template */}
+      <div className="mt-14 pt-8 border-t border-[color:var(--border)] space-y-10">
+
+        {/* Row 1: Buyer guides + tools */}
+        <div className="grid sm:grid-cols-2 gap-8">
+          <div>
+            <h3 className="text-sm font-semibold text-[color:var(--foreground)] mb-3">Buyer guides</h3>
+            <ul className="space-y-2 text-sm">
+              <li><Link href="/blog/how-much-house-can-i-afford" className="text-[color:var(--accent)] hover:underline">How much house can I afford?</Link></li>
+              <li><Link href="/blog/how-much-income-to-buy-a-home" className="text-[color:var(--accent)] hover:underline">How much income do I need to buy a home?</Link></li>
+              <li><Link href="/blog/steps-to-buying-a-home-in-the-gta" className="text-[color:var(--accent)] hover:underline">Steps to buying a home in the GTA</Link></li>
+              <li><Link href="/blog/how-much-down-payment-to-buy-a-home" className="text-[color:var(--accent)] hover:underline">How much down payment do I need?</Link></li>
+              <li><Link href="/blog/is-now-a-good-time-to-buy-a-home" className="text-[color:var(--accent)] hover:underline">Is now a good time to buy in the GTA?</Link></li>
+            </ul>
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-[color:var(--foreground)] mb-3">Tools</h3>
+            <ul className="space-y-2 text-sm">
+              <li><Link href="/mortgage-calculator" className="text-[color:var(--accent)] hover:underline">Mortgage calculator</Link></li>
+              <li><Link href="/open-houses" className="text-[color:var(--accent)] hover:underline">Upcoming open houses in {city.name}</Link></li>
+              <li><Link href="/neighbourhoods" className="text-[color:var(--accent)] hover:underline">Browse by neighbourhood</Link></li>
+            </ul>
           </div>
         </div>
+
+        {/* Row 2: Nearby cities + external resources */}
+        <div className="grid sm:grid-cols-2 gap-8">
+          <div>
+            <h3 className="text-sm font-semibold text-[color:var(--foreground)] mb-3">Nearby areas</h3>
+            <div className="flex flex-wrap gap-x-4 gap-y-2">
+              {otherCities.map(c => (
+                <Link
+                  key={c.slug}
+                  href={`/homes-for-sale/${c.slug}`}
+                  className="text-sm text-[color:var(--text-muted)] hover:text-[color:var(--accent)] transition-colors"
+                >
+                  {c.name}
+                </Link>
+              ))}
+            </div>
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-[color:var(--foreground)] mb-3">External resources</h3>
+            <ul className="space-y-2 text-sm">
+              <li>
+                <a href="https://www.trreb.ca/index.php/market-news/market-stats" target="_blank" rel="noopener noreferrer" className="text-[color:var(--text-muted)] hover:text-[color:var(--accent)] transition-colors">
+                  TRREB monthly market statistics ↗
+                </a>
+              </li>
+              <li>
+                <a href="https://www.canada.ca/en/financial-consumer-agency/services/buying-home.html" target="_blank" rel="noopener noreferrer" className="text-[color:var(--text-muted)] hover:text-[color:var(--accent)] transition-colors">
+                  Government of Canada: Buying a home ↗
+                </a>
+              </li>
+              <li>
+                <a href="https://www.cmhc-schl.gc.ca/consumers/home-buying" target="_blank" rel="noopener noreferrer" className="text-[color:var(--text-muted)] hover:text-[color:var(--accent)] transition-colors">
+                  CMHC homebuyer resources ↗
+                </a>
+              </li>
+            </ul>
+          </div>
+        </div>
+
       </div>
     </div>
   )
