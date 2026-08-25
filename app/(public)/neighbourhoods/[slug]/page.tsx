@@ -68,8 +68,11 @@ const NEIGHBOURHOODS: Record<string, { name: string; description: string; about:
   },
 }
 
+const PER_PAGE = 24
+
 interface Props {
   params: Promise<{ slug: string }>
+  searchParams: Promise<{ page?: string }>
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -77,21 +80,20 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const hood = NEIGHBOURHOODS[slug]
   if (!hood) return { title: 'Not Found' }
   return {
-    title: `${hood.name} Real Estate — Toronto | Condohill`,
-    description: `Browse ${hood.name} listings. ${hood.description}`,
+    title: `${hood.name} Real Estate — Toronto`,
+    description: `Browse active MLS® listings in ${hood.name}, Toronto. ${hood.description} Real-time prices, photos, and property details.`,
   }
 }
 
-async function getNeighbourhoodData(name: string) {
+async function getNeighbourhoodData(name: string, page: number) {
+  const where = { status: 'active', neighbourhood: { contains: name, mode: 'insensitive' as const } }
   try {
     const [listingsRaw, stats] = await Promise.all([
       (db as any).property.findMany({
-        where: {
-          status: 'active',
-          neighbourhood: { contains: name, mode: 'insensitive' },
-        },
+        where,
         orderBy: { listedAt: 'desc' },
-        take: 9,
+        skip: (page - 1) * PER_PAGE,
+        take: PER_PAGE,
         select: {
           id: true, listingId: true, title: true, status: true, price: true,
           propertyType: true, transactionType: true, bedrooms: true,
@@ -103,7 +105,7 @@ async function getNeighbourhoodData(name: string) {
         },
       }),
       (db as any).property.aggregate({
-        where: { status: 'active', neighbourhood: { contains: name, mode: 'insensitive' } },
+        where,
         _count: { id: true },
         _avg: { price: true },
         _min: { price: true },
@@ -144,12 +146,15 @@ function fmtPrice(n: number) {
   return `$${Math.round(n / 1000)}K`
 }
 
-export default async function NeighbourhoodPage({ params }: Props) {
+export default async function NeighbourhoodPage({ params, searchParams }: Props) {
   const { slug } = await params
+  const { page: pageParam } = await searchParams
   const hood = NEIGHBOURHOODS[slug]
   if (!hood) notFound()
 
-  const { listings, count, avgPrice, minPrice, maxPrice } = await getNeighbourhoodData(hood.name)
+  const page = Math.max(1, parseInt(pageParam ?? '1', 10) || 1)
+  const { listings, count, avgPrice, minPrice, maxPrice } = await getNeighbourhoodData(hood.name, page)
+  const totalPages = Math.ceil(count / PER_PAGE)
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
@@ -205,22 +210,44 @@ export default async function NeighbourhoodPage({ params }: Props) {
       {/* Listings */}
       <div className="mb-6 flex items-center justify-between">
         <h2 className="text-xl font-bold text-[color:var(--foreground)]">
-          {count > 0 ? `${count} Active Listing${count !== 1 ? 's' : ''}` : 'No active listings'}
+          {count > 0
+            ? `${count.toLocaleString()} Active Listing${count !== 1 ? 's' : ''}${totalPages > 1 ? ` — page ${page} of ${totalPages}` : ''}`
+            : 'No active listings'}
         </h2>
-        <Link
-          href={`/search?neighbourhood=${encodeURIComponent(hood.name)}`}
-          className="text-sm text-[color:var(--accent)] hover:underline font-medium"
-        >
-          View all →
-        </Link>
       </div>
 
       {listings.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {(listings as PropertySummary[]).map(p => (
-            <PropertyCard key={p.id} property={p} />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {(listings as PropertySummary[]).map(p => (
+              <PropertyCard key={p.id} property={p} />
+            ))}
+          </div>
+
+          {totalPages > 1 && (
+            <div className="mt-10 flex items-center justify-center gap-2">
+              {page > 1 && (
+                <Link
+                  href={`/neighbourhoods/${slug}?page=${page - 1}`}
+                  className="px-4 py-2 text-sm border border-[color:var(--border)] rounded-xl text-[color:var(--foreground)] hover:border-[color:var(--accent)] transition-colors"
+                >
+                  ← Previous
+                </Link>
+              )}
+              <span className="text-sm text-[color:var(--text-muted)] px-3">
+                {page} / {totalPages}
+              </span>
+              {page < totalPages && (
+                <Link
+                  href={`/neighbourhoods/${slug}?page=${page + 1}`}
+                  className="px-4 py-2 text-sm border border-[color:var(--border)] rounded-xl text-[color:var(--foreground)] hover:border-[color:var(--accent)] transition-colors"
+                >
+                  Next →
+                </Link>
+              )}
+            </div>
+          )}
+        </>
       ) : (
         <div className="bg-[color:var(--bg-surface)] border border-[color:var(--border)] rounded-2xl p-12 text-center">
           <p className="text-sm text-[color:var(--text-muted)]">No active listings in {hood.name} right now.</p>
@@ -229,6 +256,80 @@ export default async function NeighbourhoodPage({ params }: Props) {
           </Link>
         </div>
       )}
+
+      {/* Internal + external linking — SEO template */}
+      <div className="mt-14 pt-8 border-t border-[color:var(--border)] space-y-10">
+
+        {/* Row 1: Buyer guides + tools */}
+        <div className="grid sm:grid-cols-2 gap-8">
+          <div>
+            <h3 className="text-sm font-semibold text-[color:var(--foreground)] mb-3">Buyer guides</h3>
+            <ul className="space-y-2 text-sm">
+              <li><Link href="/blog/how-much-house-can-i-afford" className="text-[color:var(--accent)] hover:underline">How much house can I afford?</Link></li>
+              <li><Link href="/blog/how-much-income-to-buy-a-home" className="text-[color:var(--accent)] hover:underline">How much income do I need to buy a home?</Link></li>
+              <li><Link href="/blog/steps-to-buying-a-home-in-the-gta" className="text-[color:var(--accent)] hover:underline">Steps to buying a home in the GTA</Link></li>
+              <li><Link href="/blog/how-much-down-payment-to-buy-a-home" className="text-[color:var(--accent)] hover:underline">How much down payment do I need?</Link></li>
+              <li><Link href="/blog/is-now-a-good-time-to-buy-a-home" className="text-[color:var(--accent)] hover:underline">Is now a good time to buy in the GTA?</Link></li>
+            </ul>
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-[color:var(--foreground)] mb-3">Tools</h3>
+            <ul className="space-y-2 text-sm">
+              <li><Link href="/mortgage-calculator" className="text-[color:var(--accent)] hover:underline">Mortgage calculator</Link></li>
+              <li><Link href="/open-houses" className="text-[color:var(--accent)] hover:underline">Upcoming open houses in {hood.name}</Link></li>
+              <li><Link href="/neighbourhoods" className="text-[color:var(--accent)] hover:underline">Browse all Toronto neighbourhoods</Link></li>
+            </ul>
+          </div>
+        </div>
+
+        {/* Row 2: Nearby city pages + external resources */}
+        <div className="grid sm:grid-cols-2 gap-8">
+          <div>
+            <h3 className="text-sm font-semibold text-[color:var(--foreground)] mb-3">Search by city</h3>
+            <div className="flex flex-wrap gap-x-4 gap-y-2">
+              {[
+                { slug: 'toronto', name: 'Toronto' },
+                { slug: 'north-york', name: 'North York' },
+                { slug: 'mississauga', name: 'Mississauga' },
+                { slug: 'vaughan', name: 'Vaughan' },
+                { slug: 'markham', name: 'Markham' },
+                { slug: 'richmond-hill', name: 'Richmond Hill' },
+                { slug: 'oakville', name: 'Oakville' },
+                { slug: 'brampton', name: 'Brampton' },
+              ].map(c => (
+                <Link
+                  key={c.slug}
+                  href={`/homes-for-sale/${c.slug}`}
+                  className="text-sm text-[color:var(--text-muted)] hover:text-[color:var(--accent)] transition-colors"
+                >
+                  {c.name}
+                </Link>
+              ))}
+            </div>
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-[color:var(--foreground)] mb-3">External resources</h3>
+            <ul className="space-y-2 text-sm">
+              <li>
+                <a href="https://www.trreb.ca/index.php/market-news/market-stats" target="_blank" rel="noopener noreferrer" className="text-[color:var(--text-muted)] hover:text-[color:var(--accent)] transition-colors">
+                  TRREB monthly market statistics ↗
+                </a>
+              </li>
+              <li>
+                <a href="https://www.canada.ca/en/financial-consumer-agency/services/buying-home.html" target="_blank" rel="noopener noreferrer" className="text-[color:var(--text-muted)] hover:text-[color:var(--accent)] transition-colors">
+                  Government of Canada: Buying a home ↗
+                </a>
+              </li>
+              <li>
+                <a href="https://www.cmhc-schl.gc.ca/consumers/home-buying" target="_blank" rel="noopener noreferrer" className="text-[color:var(--text-muted)] hover:text-[color:var(--accent)] transition-colors">
+                  CMHC homebuyer resources ↗
+                </a>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+      </div>
     </div>
   )
 }
