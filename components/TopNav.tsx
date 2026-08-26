@@ -6,6 +6,7 @@ import Image from 'next/image'
 import { useSession, signOut } from 'next-auth/react'
 
 const NAV_LINKS = [
+  { href: '/homes-for-sale', label: 'Homes for Sale' },
   { href: '/neighbourhoods', label: 'Neighbourhoods' },
   { href: '/open-houses', label: 'Open Houses' },
   { href: '/blog', label: 'Market Updates' },

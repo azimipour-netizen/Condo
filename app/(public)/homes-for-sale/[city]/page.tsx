@@ -1,10 +1,11 @@
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { db } from '@/lib/db'
 import PropertyCard from '@/components/property/PropertyCard'
 import type { PropertySummary, PropertyType } from '@/types/property'
 import { GTA_CITIES, findGtaCity, cityWhereClause, type GtaCity } from '@/lib/seo/gta-cities'
+import { NEIGHBOURHOOD_SLUGS } from '@/lib/seo/toronto-neighbourhoods'
 
 const PER_PAGE = 24
 
@@ -111,6 +112,7 @@ async function getCityData(city: GtaCity, page: number) {
 export default async function CityLandingPage({ params, searchParams }: Props) {
   const { city: slug } = await params
   const { page: pageParam } = await searchParams
+  if (NEIGHBOURHOOD_SLUGS.has(slug)) redirect(`/neighbourhoods/${slug}`)
   const city = findGtaCity(slug)
   if (!city) notFound()
 
