@@ -3,12 +3,15 @@ import { db } from '@/lib/db'
 import { GTA_CITIES } from '@/lib/seo/gta-cities'
 import { PROP_TYPE_CFGS, type PropTypeCfg } from '@/lib/seo/property-type-pages'
 
-async function getTotalCount(dbType: string): Promise<number> {
+async function getTotalCount(config: PropTypeCfg): Promise<number> {
   try {
+    const where: Record<string, unknown> = {
+      status: 'active',
+      transactionType: config.transactionType,
+    }
+    if (config.dbType) where.propertyType = config.dbType
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const result = await (db as any).property.count({
-      where: { status: 'active', transactionType: 'sale', propertyType: dbType },
-    })
+    const result = await (db as any).property.count({ where })
     return result ?? 0
   } catch {
     return 0
@@ -16,8 +19,10 @@ async function getTotalCount(dbType: string): Promise<number> {
 }
 
 export async function PropTypeHubPage({ config }: { config: PropTypeCfg }) {
-  const total = await getTotalCount(config.dbType)
-  const otherTypes = PROP_TYPE_CFGS.filter(c => c.typeSlug !== config.typeSlug)
+  const total = await getTotalCount(config)
+  const otherTypes = PROP_TYPE_CFGS.filter(
+    c => c.typeSlug !== config.typeSlug && c.transactionType === config.transactionType && c.dbType !== null
+  )
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-12">
@@ -70,11 +75,16 @@ export async function PropTypeHubPage({ config }: { config: PropTypeCfg }) {
           <div>
             <h3 className="text-sm font-semibold text-[color:var(--foreground)] mb-3">Other property types</h3>
             <ul className="space-y-2 text-sm">
-              <li>
-                <Link href="/homes-for-sale" className="text-[color:var(--text-muted)] hover:text-[color:var(--accent)] transition-colors">
-                  All homes for sale in the GTA
-                </Link>
-              </li>
+              {config.dbType !== null && (
+                <li>
+                  <Link
+                    href={`/${config.transactionType === 'lease' ? 'homes-for-rent' : 'homes-for-sale'}`}
+                    className="text-[color:var(--text-muted)] hover:text-[color:var(--accent)] transition-colors"
+                  >
+                    All {config.transactionType === 'lease' ? 'rentals' : 'homes'} in the GTA
+                  </Link>
+                </li>
+              )}
               {otherTypes.map(t => (
                 <li key={t.typeSlug}>
                   <Link href={`/${t.typeSlug}`} className="text-[color:var(--text-muted)] hover:text-[color:var(--accent)] transition-colors">

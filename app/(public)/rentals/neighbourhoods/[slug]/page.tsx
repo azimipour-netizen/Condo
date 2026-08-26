@@ -1,10 +1,10 @@
 import { notFound } from 'next/navigation'
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { db } from '@/lib/db'
 import PropertyCard from '@/components/property/PropertyCard'
 import type { PropertySummary } from '@/types/property'
-import { GTA_CITIES, findGtaCity, cityWhereClause, type GtaCity } from '@/lib/seo/gta-cities'
-import { PROP_TYPE_CFGS, type PropTypeCfg } from '@/lib/seo/property-type-pages'
+import { TORONTO_NEIGHBOURHOODS, findNeighbourhood } from '@/lib/seo/toronto-neighbourhoods'
 
 const PER_PAGE = 24
 
@@ -13,13 +13,31 @@ function fmtPrice(n: number) {
   return `$${Math.round(n / 1000)}K`
 }
 
-async function getTypeData(config: PropTypeCfg, city: GtaCity, page: number) {
-  const where: Record<string, unknown> = {
-    status: 'active',
-    transactionType: config.transactionType,
-    ...cityWhereClause(city),
+interface Props {
+  params: Promise<{ slug: string }>
+  searchParams: Promise<{ page?: string }>
+}
+
+export function generateStaticParams() {
+  return TORONTO_NEIGHBOURHOODS.map(n => ({ slug: n.slug }))
+}
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { slug } = await params
+  const hood = findNeighbourhood(slug)
+  if (!hood) return { title: 'Not Found' }
+  return {
+    title: `${hood.name} Rentals — Apartments & Houses for Rent in ${hood.name}, Toronto`,
+    description: `Browse active MLS® rental listings in ${hood.name}, Toronto. ${hood.description} Real-time rental prices, photos, and property details.`,
   }
-  if (config.dbType) where.propertyType = config.dbType
+}
+
+async function getNeighbourhoodRentals(searchTerm: string, page: number) {
+  const where = {
+    status: 'active',
+    transactionType: 'lease',
+    neighbourhood: { contains: searchTerm, mode: 'insensitive' as const },
+  }
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [listingsRaw, stats] = await Promise.all([
@@ -78,39 +96,33 @@ async function getTypeData(config: PropTypeCfg, city: GtaCity, page: number) {
   }
 }
 
-interface Props {
-  config: PropTypeCfg
-  citySlug: string
-  page: number
-}
+export default async function NeighbourhoodRentalsPage({ params, searchParams }: Props) {
+  const { slug } = await params
+  const { page: pageParam } = await searchParams
+  const hood = findNeighbourhood(slug)
+  if (!hood) notFound()
 
-export async function PropTypeCityPage({ config, citySlug, page }: Props) {
-  const city = findGtaCity(citySlug)
-  if (!city) notFound()
-
-  const { listings, count, avgPrice, minPrice, maxPrice } = await getTypeData(config, city, page)
+  const page = Math.max(1, parseInt(pageParam ?? '1', 10) || 1)
+  const searchTerm = hood.searchTerm ?? hood.name
+  const { listings, count, avgPrice, minPrice, maxPrice } = await getNeighbourhoodRentals(searchTerm, page)
   const totalPages = Math.ceil(count / PER_PAGE)
-  const otherTypes = PROP_TYPE_CFGS.filter(
-    c => c.typeSlug !== config.typeSlug && c.transactionType === config.transactionType && c.dbType !== null
-  )
-  const otherCities = GTA_CITIES.filter(c => c.slug !== city.slug).slice(0, 8)
+  const otherHoods = TORONTO_NEIGHBOURHOODS.filter(n => n.slug !== slug).slice(0, 8)
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
-      {/* Breadcrumb */}
       <nav className="flex items-center gap-2 text-sm text-[color:var(--text-muted)] mb-8">
         <Link href="/" className="hover:text-[color:var(--accent)] transition-colors">Home</Link>
         <span>/</span>
-        <Link href={`/${config.typeSlug}`} className="hover:text-[color:var(--accent)] transition-colors">
-          {config.plural} for Sale
-        </Link>
+        <Link href="/homes-for-rent" className="hover:text-[color:var(--accent)] transition-colors">Homes for Rent</Link>
         <span>/</span>
-        <span className="text-[color:var(--foreground)]">{city.name}</span>
+        <Link href="/rentals/neighbourhoods" className="hover:text-[color:var(--accent)] transition-colors">By Neighbourhood</Link>
+        <span>/</span>
+        <span className="text-[color:var(--foreground)]">{hood.name}</span>
       </nav>
 
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-[color:var(--foreground)]">{config.cityTitle(city.name)}</h1>
-        <p className="mt-2 text-base text-[color:var(--text-muted)] max-w-2xl">{city.blurb}</p>
+        <h1 className="text-3xl font-bold text-[color:var(--foreground)]">{hood.name} Rentals</h1>
+        <p className="mt-2 text-base text-[color:var(--text-muted)] max-w-2xl">{hood.description}</p>
       </div>
 
       {/* Stats */}
@@ -118,12 +130,12 @@ export async function PropTypeCityPage({ config, citySlug, page }: Props) {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
           <div className="bg-[color:var(--bg-surface)] border border-[color:var(--border)] rounded-2xl p-4">
             <p className="text-2xl font-bold text-[color:var(--foreground)] tabular-nums">{count.toLocaleString()}</p>
-            <p className="text-xs text-[color:var(--text-muted)] mt-0.5">Active listings</p>
+            <p className="text-xs text-[color:var(--text-muted)] mt-0.5">Active rentals</p>
           </div>
           {avgPrice && (
             <div className="bg-[color:var(--bg-surface)] border border-[color:var(--border)] rounded-2xl p-4">
               <p className="text-2xl font-bold text-[color:var(--foreground)] tabular-nums">{fmtPrice(avgPrice)}</p>
-              <p className="text-xs text-[color:var(--text-muted)] mt-0.5">Average price</p>
+              <p className="text-xs text-[color:var(--text-muted)] mt-0.5">Average rent</p>
             </div>
           )}
           {minPrice && (
@@ -141,33 +153,34 @@ export async function PropTypeCityPage({ config, citySlug, page }: Props) {
         </div>
       )}
 
-      {/* Cross-type quick links */}
+      {/* Neighbourhood quick links */}
       <div className="flex flex-wrap gap-2 mb-10">
-        {config.dbType !== null && (
-          <Link
-            href={`/${config.transactionType === 'lease' ? 'homes-for-rent' : 'homes-for-sale'}/${city.slug}`}
-            className="px-4 py-2 text-sm bg-[color:var(--bg-surface)] border border-[color:var(--border)] rounded-full text-[color:var(--foreground)] hover:border-[color:var(--accent)] hover:text-[color:var(--accent)] transition-colors"
-          >
-            All {config.transactionType === 'lease' ? 'Rentals' : 'Homes'}
-          </Link>
-        )}
-        {otherTypes.map(t => (
-          <Link
-            key={t.typeSlug}
-            href={`/${t.typeSlug}/${city.slug}`}
-            className="px-4 py-2 text-sm bg-[color:var(--bg-surface)] border border-[color:var(--border)] rounded-full text-[color:var(--foreground)] hover:border-[color:var(--accent)] hover:text-[color:var(--accent)] transition-colors"
-          >
-            {t.plural}
-          </Link>
-        ))}
+        <Link
+          href={`/neighbourhoods/${slug}`}
+          className="px-4 py-2 text-sm bg-[color:var(--bg-surface)] border border-[color:var(--border)] rounded-full text-[color:var(--foreground)] hover:border-[color:var(--accent)] hover:text-[color:var(--accent)] transition-colors"
+        >
+          All Listings in {hood.name}
+        </Link>
+        <Link
+          href={`/homes-for-rent/toronto`}
+          className="px-4 py-2 text-sm bg-[color:var(--bg-surface)] border border-[color:var(--border)] rounded-full text-[color:var(--foreground)] hover:border-[color:var(--accent)] hover:text-[color:var(--accent)] transition-colors"
+        >
+          All Toronto Rentals
+        </Link>
+      </div>
+
+      {/* About */}
+      <div className="bg-[color:var(--bg-surface)] border border-[color:var(--border)] rounded-2xl p-6 mb-10">
+        <h2 className="text-sm font-semibold text-[color:var(--foreground)] mb-2">About {hood.name}</h2>
+        <p className="text-sm text-[color:var(--text-muted)] leading-relaxed">{hood.about}</p>
       </div>
 
       {/* Listings heading */}
       <div className="mb-6">
         <h2 className="text-xl font-bold text-[color:var(--foreground)]">
           {count > 0
-            ? `${count.toLocaleString()} ${config.plural} for Sale${totalPages > 1 ? ` — page ${page} of ${totalPages}` : ''}`
-            : `No ${config.plural} listed in ${city.name}`}
+            ? `${count.toLocaleString()} Rental${count !== 1 ? 's' : ''} in ${hood.name}${totalPages > 1 ? ` — page ${page} of ${totalPages}` : ''}`
+            : `No active rentals in ${hood.name}`}
         </h2>
       </div>
 
@@ -182,19 +195,15 @@ export async function PropTypeCityPage({ config, citySlug, page }: Props) {
           {totalPages > 1 && (
             <div className="mt-10 flex items-center justify-center gap-2">
               {page > 1 && (
-                <Link
-                  href={`/${config.typeSlug}/${city.slug}?page=${page - 1}`}
-                  className="px-4 py-2 text-sm border border-[color:var(--border)] rounded-xl text-[color:var(--foreground)] hover:border-[color:var(--accent)] transition-colors"
-                >
+                <Link href={`/rentals/neighbourhoods/${slug}?page=${page - 1}`}
+                  className="px-4 py-2 text-sm border border-[color:var(--border)] rounded-xl text-[color:var(--foreground)] hover:border-[color:var(--accent)] transition-colors">
                   ← Previous
                 </Link>
               )}
               <span className="text-sm text-[color:var(--text-muted)] px-3">{page} / {totalPages}</span>
               {page < totalPages && (
-                <Link
-                  href={`/${config.typeSlug}/${city.slug}?page=${page + 1}`}
-                  className="px-4 py-2 text-sm border border-[color:var(--border)] rounded-xl text-[color:var(--foreground)] hover:border-[color:var(--accent)] transition-colors"
-                >
+                <Link href={`/rentals/neighbourhoods/${slug}?page=${page + 1}`}
+                  className="px-4 py-2 text-sm border border-[color:var(--border)] rounded-xl text-[color:var(--foreground)] hover:border-[color:var(--accent)] transition-colors">
                   Next →
                 </Link>
               )}
@@ -203,11 +212,9 @@ export async function PropTypeCityPage({ config, citySlug, page }: Props) {
         </>
       ) : (
         <div className="bg-[color:var(--bg-surface)] border border-[color:var(--border)] rounded-2xl p-12 text-center">
-          <p className="text-sm text-[color:var(--text-muted)]">
-            No active {config.plural.toLowerCase()} in {city.name} right now.
-          </p>
-          <Link href={`/${config.typeSlug}`} className="mt-3 inline-block text-sm text-[color:var(--accent)] hover:underline">
-            Browse {config.plural.toLowerCase()} in other GTA cities →
+          <p className="text-sm text-[color:var(--text-muted)]">No active rentals in {hood.name} right now.</p>
+          <Link href="/homes-for-rent/toronto" className="mt-3 inline-block text-sm text-[color:var(--accent)] hover:underline">
+            Browse all Toronto rentals →
           </Link>
         </div>
       )}
@@ -216,46 +223,36 @@ export async function PropTypeCityPage({ config, citySlug, page }: Props) {
       <div className="mt-14 pt-8 border-t border-[color:var(--border)] space-y-10">
         <div className="grid sm:grid-cols-2 gap-8">
           <div>
-            <h3 className="text-sm font-semibold text-[color:var(--foreground)] mb-3">Buyer guides</h3>
+            <h3 className="text-sm font-semibold text-[color:var(--foreground)] mb-3">Thinking of buying instead?</h3>
             <ul className="space-y-2 text-sm">
-              {config.buyerGuides.map(g => (
-                <li key={g.href}>
-                  <Link href={g.href} className="text-[color:var(--accent)] hover:underline">{g.label}</Link>
-                </li>
-              ))}
+              <li><Link href="/blog/steps-to-buying-a-home-in-the-gta" className="text-[color:var(--accent)] hover:underline">Steps to buying a home in the GTA</Link></li>
+              <li><Link href="/blog/how-much-house-can-i-afford" className="text-[color:var(--accent)] hover:underline">How much home can I afford?</Link></li>
+              <li><Link href="/blog/how-much-down-payment-to-buy-a-home" className="text-[color:var(--accent)] hover:underline">How much down payment do you need?</Link></li>
+              <li><Link href="/blog/first-time-home-buyer-benefits-ontario" className="text-[color:var(--accent)] hover:underline">First-time home buyer benefits in Ontario</Link></li>
+              <li><Link href="/blog/what-is-the-home-buyers-plan" className="text-[color:var(--accent)] hover:underline">Home Buyers&apos; Plan — use your RRSP</Link></li>
             </ul>
           </div>
           <div>
             <h3 className="text-sm font-semibold text-[color:var(--foreground)] mb-3">Tools</h3>
             <ul className="space-y-2 text-sm">
-              <li>
-                <Link href="/mortgage-calculator" className="text-[color:var(--accent)] hover:underline">Mortgage calculator</Link>
-              </li>
-              <li>
-                <Link href="/open-houses" className="text-[color:var(--accent)] hover:underline">
-                  Open houses in {city.name}
-                </Link>
-              </li>
-              <li>
-                <Link href="/neighbourhoods" className="text-[color:var(--accent)] hover:underline">Browse by neighbourhood</Link>
-              </li>
+              <li><Link href="/mortgage-calculator" className="text-[color:var(--accent)] hover:underline">Mortgage calculator</Link></li>
+              <li><Link href={`/neighbourhoods/${slug}`} className="text-[color:var(--accent)] hover:underline">All listings in {hood.name}</Link></li>
+              <li><Link href="/rentals/neighbourhoods" className="text-[color:var(--accent)] hover:underline">All Toronto neighbourhood rentals</Link></li>
             </ul>
           </div>
         </div>
 
         <div className="grid sm:grid-cols-2 gap-8">
           <div>
-            <h3 className="text-sm font-semibold text-[color:var(--foreground)] mb-3">
-              {config.plural} in other cities
-            </h3>
+            <h3 className="text-sm font-semibold text-[color:var(--foreground)] mb-3">Other neighbourhoods</h3>
             <div className="flex flex-wrap gap-x-4 gap-y-2">
-              {otherCities.map(c => (
+              {otherHoods.map(n => (
                 <Link
-                  key={c.slug}
-                  href={`/${config.typeSlug}/${c.slug}`}
+                  key={n.slug}
+                  href={`/rentals/neighbourhoods/${n.slug}`}
                   className="text-sm text-[color:var(--text-muted)] hover:text-[color:var(--accent)] transition-colors"
                 >
-                  {c.name}
+                  {n.name}
                 </Link>
               ))}
             </div>
@@ -264,30 +261,18 @@ export async function PropTypeCityPage({ config, citySlug, page }: Props) {
             <h3 className="text-sm font-semibold text-[color:var(--foreground)] mb-3">External resources</h3>
             <ul className="space-y-2 text-sm">
               <li>
-                <a
-                  href="https://www.trreb.ca/index.php/market-news/market-stats"
-                  target="_blank" rel="noopener noreferrer"
-                  className="text-[color:var(--text-muted)] hover:text-[color:var(--accent)] transition-colors"
-                >
+                <a href="https://www.trreb.ca/index.php/market-news/market-stats" target="_blank" rel="noopener noreferrer" className="text-[color:var(--text-muted)] hover:text-[color:var(--accent)] transition-colors">
                   TRREB monthly market statistics ↗
                 </a>
               </li>
               <li>
-                <a
-                  href="https://www.canada.ca/en/financial-consumer-agency/services/buying-home.html"
-                  target="_blank" rel="noopener noreferrer"
-                  className="text-[color:var(--text-muted)] hover:text-[color:var(--accent)] transition-colors"
-                >
-                  Government of Canada: Buying a home ↗
+                <a href="https://www.ontario.ca/page/renting-ontario-your-rights" target="_blank" rel="noopener noreferrer" className="text-[color:var(--text-muted)] hover:text-[color:var(--accent)] transition-colors">
+                  Ontario tenant rights ↗
                 </a>
               </li>
               <li>
-                <a
-                  href="https://www.cmhc-schl.gc.ca/consumers/home-buying"
-                  target="_blank" rel="noopener noreferrer"
-                  className="text-[color:var(--text-muted)] hover:text-[color:var(--accent)] transition-colors"
-                >
-                  CMHC homebuyer resources ↗
+                <a href="https://tribunalsontario.ca/ltb/" target="_blank" rel="noopener noreferrer" className="text-[color:var(--text-muted)] hover:text-[color:var(--accent)] transition-colors">
+                  Landlord and Tenant Board ↗
                 </a>
               </li>
             </ul>
