@@ -5,6 +5,35 @@ const PHONE = '19059096600'
 export default function FloatingContact() {
   return (
     <div className="fixed bottom-6 right-4 z-50 flex flex-col gap-3">
+      {/* Facebook */}
+      <a
+        href="https://facebook.com/condohill"
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="Facebook"
+        className="flex items-center justify-center rounded-full shadow-lg transition-transform hover:scale-110 active:scale-95"
+        style={{ backgroundColor: '#1877F2', width: 52, height: 52 }}
+      >
+        <svg viewBox="0 0 24 24" fill="white" width="26" height="26">
+          <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/>
+        </svg>
+      </a>
+
+      {/* Instagram */}
+      <a
+        href="https://instagram.com/condohill"
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="Instagram"
+        className="flex items-center justify-center rounded-full shadow-lg transition-transform hover:scale-110 active:scale-95"
+        style={{ background: 'radial-gradient(circle at 30% 107%, #fdf497 0%, #fdf497 5%, #fd5949 45%, #d6249f 60%, #285AEB 90%)', width: 52, height: 52 }}
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="26" height="26">
+          <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
+          <circle cx="12" cy="12" r="4"/>
+          <circle cx="17.5" cy="6.5" r="0.5" fill="white" stroke="none"/>
+        </svg>
+      </a>
       {/* WhatsApp */}
       <a
         href={`https://wa.me/${PHONE}`}
