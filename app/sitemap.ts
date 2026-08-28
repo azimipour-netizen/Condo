@@ -1,6 +1,7 @@
 ﻿import type { MetadataRoute } from 'next'
 import { db } from '@/lib/db'
 import { GTA_CITIES } from '@/lib/seo/gta-cities'
+import { PROP_TYPE_CFGS } from '@/lib/seo/property-type-pages'
 
 const BASE = process.env.NEXT_PUBLIC_APP_URL ?? 'https://condohill.com'
 
@@ -35,6 +36,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: 'daily' as const,
       priority: 0.8,
     })),
+    ...PROP_TYPE_CFGS.flatMap(cfg => [
+      { url: `${BASE}/${cfg.typeSlug}`, changeFrequency: 'weekly' as const, priority: 0.8 },
+      ...GTA_CITIES.map(c => ({
+        url: `${BASE}/${cfg.typeSlug}/${c.slug}`,
+        changeFrequency: 'daily' as const,
+        priority: 0.7,
+      })),
+    ]),
     { url: `${BASE}/privacy`, changeFrequency: 'yearly', priority: 0.2 },
     { url: `${BASE}/terms`, changeFrequency: 'yearly', priority: 0.2 },
   ]
