@@ -87,7 +87,7 @@ export function Footer5() {
       <div className="max-w-[1400px] mx-auto w-full flex flex-col items-center">
         <div
           className="relative w-full rounded-2xl sm:rounded-3xl p-8 sm:p-12 lg:p-16 overflow-hidden"
-          style={{ backgroundColor: "#0D9488" }}
+          style={{ backgroundColor: "#1B2D55" }}
         >
           {/* Gradient columns */}
           <div className="absolute inset-0 flex flex-row items-end justify-center pointer-events-none">
@@ -113,11 +113,11 @@ export function Footer5() {
             <div className="flex flex-col space-y-6 sm:space-y-8">
               <div className="flex items-center">
                 <Image
-                  src="/Remaxlogofooter123.png"
+                  src="/logo4.jpg"
                   alt="RE/MAX Find Properties Brokerage"
-                  width={400}
-                  height={120}
-                  className="w-72 sm:w-96 h-auto"
+                  width={480}
+                  height={140}
+                  className="w-72 sm:w-[420px] h-auto rounded-lg"
                   priority
                 />
               </div>
