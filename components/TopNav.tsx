@@ -53,6 +53,17 @@ export default function TopNav() {
             </Link>
           ))}
 
+          {/* Call button */}
+          <a
+            href="tel:9059096600"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-[#0D9488] text-white rounded-lg hover:opacity-90 transition-opacity"
+          >
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+              <path d="M2.5 1.5C2.5 1.5 1 1.5 1 3C1 7.5 5.5 12 10 12C11.5 12 11.5 10.5 11.5 10.5L9.5 8.5L8 9.5C8 9.5 5.5 7.5 4.5 4.5L5.5 3L3.5 1L2.5 1.5Z" fill="currentColor"/>
+            </svg>
+            <span className="hidden sm:inline">905-909-6600</span>
+          </a>
+
           {/* Map Search button */}
           <Link
             href="/search"
@@ -168,6 +179,13 @@ export default function TopNav() {
       {mobileOpen && (
         <div className="sm:hidden fixed top-[53px] left-0 right-0 z-40 bg-[color:var(--bg-surface)] border-b border-[color:var(--border)] shadow-lg">
           <nav className="flex flex-col divide-y divide-[color:var(--border)]">
+            <a href="tel:9059096600"
+              className="px-5 py-3.5 text-sm font-medium text-white bg-[#0D9488] hover:opacity-90 transition-opacity flex items-center gap-2">
+              <svg width="14" height="14" viewBox="0 0 13 13" fill="none">
+                <path d="M2.5 1.5C2.5 1.5 1 1.5 1 3C1 7.5 5.5 12 10 12C11.5 12 11.5 10.5 11.5 10.5L9.5 8.5L8 9.5C8 9.5 5.5 7.5 4.5 4.5L5.5 3L3.5 1L2.5 1.5Z" fill="currentColor"/>
+              </svg>
+              Call Us: 905-909-6600
+            </a>
             <Link href="/search" onClick={() => setMobileOpen(false)}
               className="px-5 py-3.5 text-sm font-medium text-[color:var(--accent)] hover:bg-[color:var(--bg-surface-2)] transition-colors flex items-center gap-2">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
