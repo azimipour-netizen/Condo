@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 import { getMLSAdapter } from '@/lib/mls/adapter'
 import PropertyDetailView from '@/components/property/PropertyDetailView'
 import RecentlyViewed from '@/components/RecentlyViewed'
+import FloatingContact from '@/components/FloatingContact'
 import { auth } from '@/auth'
 import { db } from '@/lib/db'
 
@@ -172,6 +173,7 @@ export default async function PropertyDetailPage({ params }: Props) {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <PropertyDetailView property={property} initialSaved={initialSaved} avm={avm} marketDemand={marketDemand} />
       <RecentlyViewed />
+      <FloatingContact />
     </>
   )
 }
