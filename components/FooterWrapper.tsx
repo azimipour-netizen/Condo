@@ -1,7 +1,7 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
-import Footer from './Footer'
+import { Footer5 as Footer } from './footer-5'
 
 // Routes where footer should not appear (full-screen viewport experiences)
 const NO_FOOTER_ROUTES = ['/search']
