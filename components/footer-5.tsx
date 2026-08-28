@@ -113,11 +113,11 @@ export function Footer5() {
             <div className="flex flex-col space-y-6 sm:space-y-8">
               <div className="flex items-center">
                 <Image
-                  src="/logo-combined.png"
-                  alt="Condohill | RE/MAX Find Properties Brokerage"
-                  width={320}
-                  height={115}
-                  className="w-64 sm:w-80 h-auto"
+                  src="/Remaxlogofooter123.png"
+                  alt="RE/MAX Find Properties Brokerage"
+                  width={400}
+                  height={120}
+                  className="w-72 sm:w-96 h-auto"
                   priority
                 />
               </div>
