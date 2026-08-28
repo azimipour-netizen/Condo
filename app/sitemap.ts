@@ -2,6 +2,7 @@
 import { db } from '@/lib/db'
 import { GTA_CITIES } from '@/lib/seo/gta-cities'
 import { PROP_TYPE_CFGS } from '@/lib/seo/property-type-pages'
+import { TORONTO_NEIGHBOURHOODS } from '@/lib/seo/toronto-neighbourhoods'
 
 const BASE = process.env.NEXT_PUBLIC_APP_URL ?? 'https://condohill.com'
 
@@ -44,6 +45,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         priority: 0.7,
       })),
     ]),
+    ...TORONTO_NEIGHBOURHOODS.map(n => ({
+      url: `${BASE}/neighbourhoods/${n.slug}`,
+      changeFrequency: 'weekly' as const,
+      priority: 0.7,
+    })),
+    { url: `${BASE}/rentals/neighbourhoods`, changeFrequency: 'weekly' as const, priority: 0.7 },
+    ...TORONTO_NEIGHBOURHOODS.map(n => ({
+      url: `${BASE}/rentals/neighbourhoods/${n.slug}`,
+      changeFrequency: 'weekly' as const,
+      priority: 0.7,
+    })),
     { url: `${BASE}/privacy`, changeFrequency: 'yearly', priority: 0.2 },
     { url: `${BASE}/terms`, changeFrequency: 'yearly', priority: 0.2 },
   ]
