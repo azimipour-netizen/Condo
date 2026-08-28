@@ -127,6 +127,12 @@ export function Footer5() {
                 properties across the GTA&apos;s most sought-after neighbourhoods.
               </p>
 
+              <p className="text-sm text-white/70 leading-relaxed">
+                45 Harbour Square #4<br />
+                Toronto, ON, Canada<br />
+                <a href="tel:9059096600" className="hover:text-white transition-colors">905-909-6600</a>
+              </p>
+
               <div className="flex items-center gap-4">
                 {SOCIALS.map(({ svg, href, label }) => (
                   <a
