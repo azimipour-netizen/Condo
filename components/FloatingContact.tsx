@@ -22,7 +22,7 @@ export default function FloatingContact() {
 
       {/* Telegram */}
       <a
-        href={`https://t.me/+${PHONE}`}
+        href="https://t.me/Condohill"
         target="_blank"
         rel="noopener noreferrer"
         aria-label="Chat on Telegram"
