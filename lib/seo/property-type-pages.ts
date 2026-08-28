@@ -67,6 +67,24 @@ export const PROP_TYPE_CFGS: PropTypeCfg[] = [
     ],
   },
   {
+    typeSlug: 'multiplex-for-sale',
+    dbType: 'multiplex',
+    transactionType: 'sale',
+    plural: 'Multiplexes',
+    singular: 'Multiplex',
+    hubTitle: 'Multiplexes for Sale in the GTA',
+    cityTitle: (city) => `Multiplexes for Sale in ${city}`,
+    metaDesc: (city) =>
+      `Browse active MLS® multiplex listings for sale in ${city}, Ontario. Real-time prices, photos, and property details for multiplexes and multi-family income properties.`,
+    buyerGuides: [
+      { href: '/blog/steps-to-buying-a-home-in-the-gta', label: 'Steps to buying a home in the GTA' },
+      { href: '/blog/how-much-house-can-i-afford', label: 'How much house can I afford?' },
+      { href: '/blog/how-much-down-payment-to-buy-a-home', label: 'How much down payment do you need?' },
+      { href: '/blog/what-closing-costs-do-home-buyers-pay', label: 'What closing costs do buyers pay?' },
+      { href: '/blog/what-to-inspect-before-buying-a-home', label: 'What to inspect before buying a home' },
+    ],
+  },
+  {
     typeSlug: 'townhouses-for-sale',
     dbType: 'townhouse',
     transactionType: 'sale',
