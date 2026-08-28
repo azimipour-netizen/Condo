@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 
 const YEAR = new Date().getFullYear();
@@ -110,8 +111,15 @@ export function Footer5() {
           <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-8">
             {/* Brand */}
             <div className="flex flex-col space-y-6 sm:space-y-8">
-              <div className="flex items-center gap-2">
-                <span className="text-2xl font-bold text-white tracking-tight">Condohill</span>
+              <div className="flex items-center">
+                <Image
+                  src="/logo-combined.png"
+                  alt="Condohill | RE/MAX Find Properties Brokerage"
+                  width={320}
+                  height={115}
+                  className="w-64 sm:w-80 h-auto"
+                  priority
+                />
               </div>
 
               <p className="text-base sm:text-lg text-white/90 leading-relaxed max-w-sm font-medium">
