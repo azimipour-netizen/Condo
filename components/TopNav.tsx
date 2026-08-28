@@ -39,9 +39,8 @@ export default function TopNav() {
   return (
     <>
       <header className="flex items-center justify-between px-5 h-14 border-b border-[color:var(--border)] bg-[color:var(--bg-surface)] shrink-0 z-40 relative">
-        <Link href="/" className="flex items-center gap-2">
-          <Image src="/logo-mark.png" alt="" width={32} height={32} priority className="w-8 h-8" />
-          <span className="text-sm font-semibold text-[color:var(--foreground)]">Condohill</span>
+        <Link href="/" className="flex items-center">
+          <Image src="/remax2232.jpg" alt="RE/MAX Find Properties Brokerage" width={180} height={54} priority className="h-9 w-auto" />
         </Link>
 
         <div className="flex items-center gap-3">
