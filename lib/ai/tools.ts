@@ -33,6 +33,11 @@ export const AI_TOOLS: Anthropic.Tool[] = [
             hasParking: { type: 'boolean' },
             sqftMin: { type: 'number' },
             sqftMax: { type: 'number' },
+            transactionType: {
+              type: 'string',
+              enum: ['sale', 'lease'],
+              description: 'Use "lease" when the user wants to rent. Use "sale" when the user wants to buy. Default to "sale" only if unclear.',
+            },
             preferences: {
               type: 'array',
               items: { type: 'string' },
