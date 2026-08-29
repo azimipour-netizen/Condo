@@ -22,17 +22,44 @@ async function reso<T>(path: string, params: Record<string, string>, useVow = fa
   return res.json() as Promise<T>
 }
 
-function eventLabel(status: string): string {
+function isLease(transactionType: string): boolean {
+  return (transactionType ?? '').toLowerCase().includes('lease')
+}
+
+// A lease listing is never "For Sale"/"Sold" — labelling one that way (the old
+// behaviour) put a $2,700/mo rental in the table as if it were a sale price.
+function eventLabel(status: string, transactionType: string): string {
+  const lease = isLease(transactionType)
   switch ((status ?? '').toLowerCase()) {
-    case 'active':     return 'For Sale'
-    case 'closed':     return 'Sold'
-    case 'sold':       return 'Sold'
+    case 'active':     return lease ? 'For Rent' : 'For Sale'
+    case 'closed':     return lease ? 'Leased'   : 'Sold'
+    case 'sold':       return lease ? 'Leased'   : 'Sold'
     case 'expired':    return 'Expired'
     case 'terminated': return 'Terminated'
     case 'cancelled':  return 'Terminated'
     case 'suspended':  return 'Suspended'
     default:           return status
   }
+}
+
+/**
+ * AMPRE's CloseDate is unreliable — records carry values like "3549-10-01"
+ * (same trap getSoldPage() guards against). Anything outside a plausible
+ * window is dropped rather than rendered as a real date. A close date modestly
+ * in the future is legitimate: a firm sale completes on a scheduled date.
+ */
+function safeDate(v: unknown): string | null {
+  if (!v) return null
+  const d = new Date(String(v))
+  if (isNaN(d.getTime())) return null
+  const year = d.getUTCFullYear()
+  const maxYear = new Date().getUTCFullYear() + 2
+  if (year < 1990 || year > maxYear) return null
+  return d.toISOString()
+}
+
+function odataStr(v: unknown): string {
+  return String(v).replace(/'/g, "''")
 }
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -47,10 +74,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const useVow  = !!VOW_TOKEN && !!session?.user?.id
 
   try {
+    const SELECT = 'ListingKey,StreetNumber,StreetName,City,UnitNumber,ApartmentNumber,PostalCode,ListPrice,TransactionType,StandardStatus,OriginalEntryTimestamp,ModificationTimestamp,CloseDate'
+
     // Fetch the current listing to get its address
     const current = await reso<{ value: unknown[] }>('Property', {
-      $filter:  `ListingKey eq '${id}'`,
-      $select:  'ListingKey,StreetNumber,StreetName,PostalCode,ListPrice,StandardStatus,OriginalEntryTimestamp,ModificationTimestamp,CloseDate',
+      $filter:  `ListingKey eq '${odataStr(id)}'`,
+      $select:  SELECT,
       $top:     '1',
     }, useVow)
 
@@ -60,43 +89,62 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const c = current.value[0] as any
     const streetNumber = c.StreetNumber
     const streetName   = c.StreetName
-    const postalCode   = c.PostalCode
+    const city         = c.City
+    // AMPRE populates one or the other depending on the board's data entry.
+    const unit         = c.UnitNumber ?? c.ApartmentNumber ?? null
 
-    if (!postalCode && !streetNumber) {
-      // Fallback: just return the current listing
-      return NextResponse.json([{
-        listingKey: c.ListingKey,
-        listPrice:  Number(c.ListPrice ?? 0),
-        status:     eventLabel(c.StandardStatus),
-        dateStart:  c.OriginalEntryTimestamp ?? null,
-        dateEnd:    c.CloseDate ?? null,
-      }])
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const toRow = (r: any) => ({
+      listingKey:      r.ListingKey,
+      listPrice:       Number(r.ListPrice ?? 0),
+      transactionType: isLease(r.TransactionType) ? 'lease' : 'sale',
+      status:          eventLabel(r.StandardStatus, r.TransactionType),
+      dateStart:       safeDate(r.OriginalEntryTimestamp),
+      // An active listing hasn't ended. The old code fell back to
+      // ModificationTimestamp, which rendered a bogus "Date End" on every
+      // live listing.
+      dateEnd:         (r.StandardStatus ?? '').toLowerCase() === 'active'
+        ? null
+        : safeDate(r.CloseDate) ?? safeDate(r.ModificationTimestamp),
+    })
+
+    if (!streetNumber || !streetName) {
+      // Not enough address detail to match siblings — return this listing only.
+      return NextResponse.json([toRow(c)])
     }
 
-    // Build address filter — match same street+postal across all statuses
-    const addressParts: string[] = []
-    if (postalCode) addressParts.push(`PostalCode eq '${postalCode.replace(/'/g, "''")}'`)
-    if (streetNumber) addressParts.push(`StreetNumber eq '${String(streetNumber).replace(/'/g, "''")}'`)
-    if (streetName) addressParts.push(`contains(StreetName,'${String(streetName).replace(/'/g, "''").slice(0, 20)}')`)
+    // Match this UNIT's own history, not the whole building. Matching on
+    // street + postal code alone pulled every other unit in the tower, which
+    // is why a $499k condo's history listed $2,300 rentals from other suites.
+    //
+    // PostalCode is deliberately NOT part of the filter: a single building
+    // reports several (159 Dundas St E carries both M5B 1E4 and M5B 0A9), so
+    // constraining on it drops the unit's own earlier listings. City plus the
+    // street pair is the stable identifier.
+    const addressParts: string[] = [
+      `StreetNumber eq '${odataStr(streetNumber)}'`,
+      `contains(StreetName,'${odataStr(String(streetName).slice(0, 20))}')`,
+    ]
+    if (city) addressParts.push(`City eq '${odataStr(city)}'`)
+    if (unit) {
+      addressParts.push(`(UnitNumber eq '${odataStr(unit)}' or ApartmentNumber eq '${odataStr(unit)}')`)
+    }
 
     const $filter = addressParts.join(' and ')
 
     // VOW token sees all statuses; IDX only sees Active
     const history = await reso<{ value: unknown[] }>('Property', {
       $filter,
-      $select:  'ListingKey,ListPrice,StandardStatus,OriginalEntryTimestamp,ModificationTimestamp,CloseDate',
+      $select:  SELECT,
       $orderby: 'OriginalEntryTimestamp desc',
       $top:     '20',
     }, useVow)
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rows = history.value.map((r: any) => ({
-      listingKey: r.ListingKey,
-      listPrice:  Number(r.ListPrice ?? 0),
-      status:     eventLabel(r.StandardStatus),
-      dateStart:  r.OriginalEntryTimestamp ?? null,
-      dateEnd:    r.CloseDate ?? r.ModificationTimestamp ?? null,
-    }))
+    const rows = history.value.map(toRow)
+
+    // A building-level match could still slip through for a freehold with no
+    // unit number; guarantee the subject listing is present either way.
+    if (!rows.some(r => r.listingKey === c.ListingKey)) rows.unshift(toRow(c))
 
     return NextResponse.json(rows)
   } catch {

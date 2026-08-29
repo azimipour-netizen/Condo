@@ -48,14 +48,16 @@ interface HistoryRow {
   listingKey: string
   listPrice: number
   status: string
+  transactionType?: 'sale' | 'lease'
   dateStart: string | null
   dateEnd: string | null
 }
 
-function ListingHistory({ propertyId, currentPrice, currentStatus, listedAt, listingKey }: {
+function ListingHistory({ propertyId, currentPrice, currentStatus, currentTransactionType, listedAt, listingKey }: {
   propertyId: string
   currentPrice: number
   currentStatus: string
+  currentTransactionType?: string
   listedAt: string
   listingKey: string
 }) {
@@ -73,21 +75,29 @@ function ListingHistory({ propertyId, currentPrice, currentStatus, listedAt, lis
   const fmtDate = (d: string | null) =>
     d ? new Date(d).toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' }) : '—'
 
+  const isLease = currentTransactionType === 'lease'
   const displayRows: HistoryRow[] = rows.length > 0 ? rows : [{
     listingKey,
     listPrice: currentPrice,
-    status: currentStatus === 'active' ? 'For Sale' : currentStatus.charAt(0).toUpperCase() + currentStatus.slice(1),
+    transactionType: isLease ? 'lease' : 'sale',
+    status: currentStatus === 'active'
+      ? (isLease ? 'For Rent' : 'For Sale')
+      : currentStatus.charAt(0).toUpperCase() + currentStatus.slice(1),
     dateStart: listedAt,
     dateEnd: null,
   }]
 
   const statusColor = (s: string) => {
     const ls = s.toLowerCase()
-    if (ls.includes('sale') || ls === 'active') return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-    if (ls.includes('sold') || ls === 'closed') return 'bg-red-500/10 text-red-600 dark:text-red-400'
+    if (ls.includes('sale') || ls.includes('rent') || ls === 'active') return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+    if (ls.includes('sold') || ls.includes('leased') || ls === 'closed') return 'bg-red-500/10 text-red-600 dark:text-red-400'
     if (ls.includes('terminated') || ls.includes('expired')) return 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
     return 'bg-[color:var(--bg-surface-2)] text-[color:var(--text-muted)]'
   }
+
+  // A lease row's price is a monthly rent — rendering it bare reads as a sale price.
+  const fmtPrice = (r: HistoryRow) =>
+    `$${r.listPrice.toLocaleString()}${r.transactionType === 'lease' ? '/mo' : ''}`
 
   return (
     <section className="mb-8">
@@ -109,7 +119,7 @@ function ListingHistory({ propertyId, currentPrice, currentStatus, listedAt, lis
                 <tr key={r.listingKey + i} className={`border-b border-[color:var(--border)] last:border-0 ${i % 2 === 1 ? 'bg-[color:var(--bg-surface-2)]/50' : 'bg-[color:var(--bg-surface)]'}`}>
                   <td className="px-4 py-3 text-[color:var(--text-muted)] tabular">{fmtDate(r.dateStart)}</td>
                   <td className="px-4 py-3 text-[color:var(--text-muted)] tabular">{fmtDate(r.dateEnd)}</td>
-                  <td className="px-4 py-3 font-semibold text-[color:var(--foreground)] tabular">${r.listPrice.toLocaleString()}</td>
+                  <td className="px-4 py-3 font-semibold text-[color:var(--foreground)] tabular">{fmtPrice(r)}</td>
                   <td className="px-4 py-3">
                     <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${statusColor(r.status)}`}>{r.status}</span>
                   </td>
@@ -412,7 +422,7 @@ export default function PropertyDetailView({ property: p, initialSaved, avm, mar
             <RoomDetails propertyId={p.listingId} />
 
             {/* Listing history */}
-            <ListingHistory propertyId={p.id} currentPrice={p.price} currentStatus={p.status} listedAt={p.listedAt} listingKey={p.listingId} />
+            <ListingHistory propertyId={p.id} currentPrice={p.price} currentStatus={p.status} currentTransactionType={p.transactionType} listedAt={p.listedAt} listingKey={p.listingId} />
 
             {/* Comparable sold / active listings */}
             <ComparablesSection
