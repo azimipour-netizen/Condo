@@ -40,7 +40,10 @@ export default function TopNav() {
     <>
       <header className="flex items-center justify-between px-5 h-14 border-b border-[color:var(--border)] bg-[color:var(--bg-surface)] shrink-0 z-40 relative">
         <Link href="/" className="flex items-center">
-          <Image src="/remax2232.jpg" alt="RE/MAX Find Properties Brokerage" width={180} height={54} priority className="h-9 w-auto" />
+          {/* Mobile: Condohill tower mark */}
+          <Image src="/logo-mark.png" alt="Condohill" width={36} height={36} priority className="h-9 w-auto sm:hidden" />
+          {/* Desktop: RE/MAX logo */}
+          <Image src="/remax2232.jpg" alt="RE/MAX Find Properties Brokerage" width={180} height={54} priority className="h-9 w-auto hidden sm:block" />
         </Link>
 
         <div className="flex items-center gap-3">
