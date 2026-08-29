@@ -40,7 +40,7 @@ export default function TopNav() {
     <>
       <header className="flex items-center justify-between px-5 h-14 border-b border-[color:var(--border)] bg-[color:var(--bg-surface)] shrink-0 z-40 relative">
         <Link href="/" className="flex items-center">
-          <Image src="/Log1.png" alt="Condohill" width={180} height={48} priority className="h-8 w-auto" />
+          <Image src="/Toplogo.png" alt="Condohill" width={180} height={48} priority className="h-8 w-auto" />
         </Link>
 
         <div className="flex items-center gap-3">
