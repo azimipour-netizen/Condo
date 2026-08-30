@@ -38,10 +38,15 @@ export const AI_TOOLS: Anthropic.Tool[] = [
               enum: ['sale', 'lease'],
               description: 'Use "lease" when the user wants to rent. Use "sale" when the user wants to buy. Default to "sale" only if unclear.',
             },
+            keywords: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Exact phrases to find in the listing description or title. Use this for anything that is not a structured field — seller-motivation and sale-type language ("motivated seller", "power of sale", "estate sale", "as is", "must sell", "priced to sell"), or specific features ("waterfront", "corner unit", "renovated kitchen"). Every keyword must appear, so pass only the distinctive phrase, not a whole sentence. Prefer one or two phrases.',
+            },
             preferences: {
               type: 'array',
               items: { type: 'string' },
-              description: 'Soft preferences like "modern", "renovated", "near subway", "good schools"',
+              description: 'Soft preferences like "modern", "renovated", "near subway", "good schools". These do NOT filter results — use keywords for anything that must actually match.',
             },
           },
         },

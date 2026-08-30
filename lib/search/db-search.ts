@@ -125,6 +125,18 @@ export async function searchListingsDb(filters: SearchFilters, page = 1, limit =
     where.propertyType = { in: filters.propertyTypes.map(t => t.replace('-', '_')) }
   }
 
+  // Free-text phrases ("motivated seller", "power of sale") live only in the
+  // listing copy, so they're matched against description and title. Each
+  // keyword must appear, but either field can satisfy it.
+  if (filters.keywords?.length) {
+    where.AND = filters.keywords.map(k => ({
+      OR: [
+        { description: { contains: k, mode: 'insensitive' } },
+        { title:       { contains: k, mode: 'insensitive' } },
+      ],
+    }))
+  }
+
   Object.assign(where, locationWhere(filters.location))
 
   const select = {

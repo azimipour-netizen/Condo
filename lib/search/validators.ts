@@ -38,6 +38,9 @@ export const SearchFiltersSchema = z.object({
   sqftMax: z.number().min(0).max(50_000).optional(),
   hasParking: z.boolean().optional(),
   transactionType: z.enum(['sale', 'lease']).optional(),
+  // Free-text phrases matched against description/title. Capped tightly: each
+  // keyword becomes its own ILIKE over a large table.
+  keywords: z.array(z.string().min(2).max(60)).max(5).optional(),
   preferences: z.array(z.string().max(100)).max(20).optional(),
 })
 

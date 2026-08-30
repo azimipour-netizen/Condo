@@ -33,6 +33,13 @@ export interface SearchFilters {
   hasParking?: boolean
   /** 'sale' (default) or 'lease'. Sold listings are served from the DB, not here. */
   transactionType?: 'sale' | 'lease'
+  /**
+   * Free-text phrases matched against the listing's description and title.
+   * Every keyword must appear (AND); each may match either field. This is what
+   * makes agent-speak like "motivated seller", "power of sale", or "as is"
+   * searchable — none of it exists as a structured field.
+   */
+  keywords?: string[]
   preferences?: string[]
 }
 
