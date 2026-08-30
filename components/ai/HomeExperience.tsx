@@ -1,5 +1,6 @@
 'use client'
 
+import StarBurst from '@/components/star-burst'
 import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import ChatInterface from './ChatInterface'
@@ -92,8 +93,27 @@ export default function HomeExperience({ featured, activeCount, avgPrice }: Prop
   return (
     <main className="flex-1 min-h-0 overflow-y-auto flex flex-col bg-[color:var(--background)]">
       {/* Hero */}
-      <div className="flex-1 flex flex-col items-center justify-center px-4 py-20">
-        <div className="mb-12 text-center">
+      <div className="relative flex-1 flex flex-col items-center justify-center px-4 py-20">
+        {/* Decorative starfield behind the hero. aria-hidden and
+            pointer-events-none so it never intercepts the search box or
+            reaches assistive tech; .hero-starfield gates it to the dark
+            palette and drops it under prefers-reduced-motion. */}
+        <div
+          className="hero-starfield absolute inset-0 overflow-hidden pointer-events-none"
+          aria-hidden="true"
+        >
+          <StarBurst
+            color="#14B8A6"
+            opacity={0.85}
+            brightness={1.4}
+            starSize={0.45}
+            speed={0.4}
+            centerY={0.38}
+            className="w-full h-full"
+          />
+        </div>
+
+        <div className="relative z-10 mb-12 text-center">
           <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-[color:var(--foreground)] leading-tight max-w-2xl mx-auto" style={{ textWrap: 'balance' }}>
             Find Your Next Home,<br />
             <span className="text-[color:var(--accent)]">Just Tell Us What You're Looking For</span>
@@ -105,7 +125,7 @@ export default function HomeExperience({ featured, activeCount, avgPrice }: Prop
         </div>
 
         {/* Search box */}
-        <form onSubmit={handleSubmit} className="w-full max-w-2xl">
+        <form onSubmit={handleSubmit} className="relative z-10 w-full max-w-2xl">
           <div className="relative bg-[color:var(--bg-surface)] border border-[color:var(--border-strong)] rounded-2xl shadow-lg hover:border-[color:var(--accent)] focus-within:border-[color:var(--accent)] focus-within:ring-2 focus-within:ring-[color:var(--accent)]/20 transition-all">
             <textarea
               ref={textareaRef}
@@ -136,7 +156,7 @@ export default function HomeExperience({ featured, activeCount, avgPrice }: Prop
         </form>
 
         {/* Suggested prompts */}
-        <div className="mt-8 flex flex-wrap gap-2 justify-center max-w-2xl">
+        <div className="relative z-10 mt-8 flex flex-wrap gap-2 justify-center max-w-2xl">
           {SUGGESTED_PROMPTS.map(p => (
             <button
               key={p}
@@ -149,7 +169,7 @@ export default function HomeExperience({ featured, activeCount, avgPrice }: Prop
         </div>
 
         {/* Recently viewed */}
-        <div className="mt-10 w-full max-w-2xl">
+        <div className="relative z-10 mt-10 w-full max-w-2xl">
           <RecentlyViewed />
         </div>
 

@@ -182,3 +182,20 @@ body {
   text-align: left;
 }
 .article-body th { background: var(--bg-surface-2); font-weight: 600; }
+
+/* Decorative hero starfield.
+   Shown only on the dark palette — a star field over the light background
+   (#F5F7FA) reads as noise rather than depth. The guards mirror the ones the
+   palette itself uses above, so the toggle wins in both directions.
+   It is also a continuously animating WebGL surface, so it is dropped
+   entirely when the visitor asks for reduced motion. */
+.hero-starfield { display: none; }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .hero-starfield { display: block; }
+}
+:root[data-theme="dark"] .hero-starfield { display: block; }
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-starfield { display: none; }
+}
