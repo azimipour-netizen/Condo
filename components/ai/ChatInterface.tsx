@@ -223,19 +223,6 @@ export default function ChatInterface({ initialMessage }: Props) {
     // the right place. That means flex-1 alone can't size this reliably —
     // TopNav is a fixed h-14 (56px), so 100dvh minus that is exact.
     <div className="relative h-[calc(100dvh-56px)] flex overflow-hidden">
-      {/* Search overlay. Progress ramps and asymptotes at 99% while loading is
-          true, so `duration` only paces the ramp — the preloader waits for the
-          real search to finish rather than timing out on its own. */}
-      <Preloader
-        loading={isSearching}
-        variant="circle"
-        position="fixed"
-        duration={6000}
-        loadingText="Searching listings"
-        bgColor="#1B2D55"
-        ariaLabel="Searching property listings"
-        zIndex={60}
-      />
       {/* Left: conversation */}
       {/* Below lg, the results column is hidden entirely, so this is the
           only pane a mobile visitor ever sees — the AI could describe a
@@ -315,7 +302,25 @@ export default function ChatInterface({ initialMessage }: Props) {
       </div>
 
       {/* Right: results */}
-      <div className={`${showMobileResults ? 'flex' : 'hidden'} lg:flex flex-1 flex-col overflow-hidden bg-[color:var(--background)]`}>
+      {/* `relative` anchors the search overlay, which is scoped to this column
+          rather than the viewport so the conversation stays readable while a
+          search runs. */}
+      <div className={`${showMobileResults ? 'flex' : 'hidden'} lg:flex relative flex-1 flex-col overflow-hidden bg-[color:var(--background)]`}>
+        {/* Preloader always mounts a `w-full h-full` wrapper even when idle, so
+            it is absolutely positioned out of flow — left in the flex column it
+            would take a share of the height from the results themselves. */}
+        <div className="absolute inset-0 pointer-events-none z-10">
+          <Preloader
+            loading={isSearching}
+            variant="circle"
+            position="absolute"
+            duration={6000}
+            loadingText="Searching listings"
+            bgColor="#1B2D55"
+            ariaLabel="Searching property listings"
+            zIndex={10}
+          />
+        </div>
         {hasResults ? (
           <PropertyResultsPanel result={searchResult} filters={currentFilters} />
         ) : (
