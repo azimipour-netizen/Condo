@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
+import Preloader from '@/components/preloader'
 import { useSession } from 'next-auth/react'
 import type { AIMessage } from '@/types/ai'
 import type { SearchResult, SearchFilters } from '@/types/search'
@@ -32,6 +33,10 @@ export default function ChatInterface({ initialMessage }: Props) {
   const [messages, setMessages] = useState<AIMessage[]>([])
   const [input, setInput] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
+  // True only while the search_properties tool is actually running, which
+  // is a narrower window than isStreaming (that covers the whole reply,
+  // including the model's prose before and after the search).
+  const [isSearching, setIsSearching] = useState(false)
   const [searchResult, setSearchResult] = useState<SearchResult | null>(null)
   const [currentFilters, setCurrentFilters] = useState<SearchFilters>({})
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
@@ -119,7 +124,11 @@ export default function ChatInterface({ initialMessage }: Props) {
               prev.map(m => m.id === assistantId ? { ...m, content: assistantContent } : m)
             )
           }
+          if (data.type === 'tool_start' && data.name === 'search_properties') {
+            setIsSearching(true)
+          }
           if (data.type === 'tool_result' && data.name === 'search_properties') {
+            setIsSearching(false)
             const result = data.data as SearchResult
             setSearchResult(result)
             setCurrentFilters(result.appliedFilters ?? {})
@@ -157,6 +166,9 @@ export default function ChatInterface({ initialMessage }: Props) {
       )
     } finally {
       setIsStreaming(false)
+      // A stream that errors or closes between tool_start and tool_result
+      // would otherwise leave the overlay covering the page forever.
+      setIsSearching(false)
     }
   }
 
@@ -211,6 +223,19 @@ export default function ChatInterface({ initialMessage }: Props) {
     // the right place. That means flex-1 alone can't size this reliably —
     // TopNav is a fixed h-14 (56px), so 100dvh minus that is exact.
     <div className="relative h-[calc(100dvh-56px)] flex overflow-hidden">
+      {/* Search overlay. Progress ramps and asymptotes at 99% while loading is
+          true, so `duration` only paces the ramp — the preloader waits for the
+          real search to finish rather than timing out on its own. */}
+      <Preloader
+        loading={isSearching}
+        variant="circle"
+        position="fixed"
+        duration={6000}
+        loadingText="Searching listings"
+        bgColor="#1B2D55"
+        ariaLabel="Searching property listings"
+        zIndex={60}
+      />
       {/* Left: conversation */}
       {/* Below lg, the results column is hidden entirely, so this is the
           only pane a mobile visitor ever sees — the AI could describe a
