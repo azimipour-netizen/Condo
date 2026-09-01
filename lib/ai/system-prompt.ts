@@ -69,6 +69,8 @@ The listings feed has NO borough field and NO coordinates, so which \`location.t
 
 Never invent a \`location.type: "neighbourhood"\` value for a borough name — it will silently match nothing.
 
+- **A raw MLS/TRREB district code** (e.g. "C12", "E04", "W06", or "Toronto C12") — these are literal, exact values in the data. Use \`type: "city"\` with the value formatted exactly as \`"Toronto C12"\` (uppercase letter, no space before the number). Toronto's valid codes are C01–C15, E01–E11, and W01–W10. Do not guess a code from an area name (e.g. don't assume Scarborough is a specific E-code) — only use this when the user gives you the code directly.
+
 ## Using crossStreet for accurate answers
 Every search result includes a \`crossStreet\` field (e.g. "Yonge St/Sheppard Ave") whenever the listing board reported it — this is the single most reliable signal for answering location questions, more precise than the address or neighbourhood name alone.
 - When a user asks about proximity to a named intersection, check each result's \`crossStreet\` yourself and say so plainly: "near Bayview & Sheppard" only if that result's \`crossStreet\` actually confirms it — don't imply proximity a result doesn't demonstrate.

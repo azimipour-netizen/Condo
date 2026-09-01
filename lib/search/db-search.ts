@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import type { SearchFilters, SearchResult } from '@/types/search'
 import type { PropertySummary } from '@/types/property'
+import { GTA_CITIES } from '@/lib/seo/gta-cities'
 
 /**
  * DB-backed equivalent of PropTxAdapter.searchListings(). The AMPRE-backed
@@ -28,6 +29,23 @@ function locationWhere(loc: SearchFilters['location']): Record<string, any> {
   }
 
   if (loc.type === 'city' && loc.value) {
+    // A former borough with a *verified* district-code mapping (currently
+    // only North York) resolves exactly, the same data the deterministic
+    // parser uses. This matters beyond the parser's own fast path: the AI
+    // tool schema exposed to Claude has no cityValues field (see
+    // lib/ai/tools.ts), so every conversational search for "North York"
+    // arrives here as a plain city value and would otherwise fall through
+    // to the blanket Toronto match below — which is the exact bug that
+    // returned Etobicoke/Scarborough/Mimico results for a North York rental
+    // search. Boroughs with no verified mapping (Scarborough, Etobicoke,
+    // East York) intentionally keep the broad fallback: a wrong guess at
+    // their codes would silently return wrong listings, which is worse than
+    // an honest "somewhere in Toronto" match.
+    const known = GTA_CITIES.find(c => c.name.toLowerCase() === loc.value!.toLowerCase())
+    if (known?.dbValues?.length) {
+      return { city: { in: known.dbValues } }
+    }
+
     return LEGACY_TORONTO_BOROUGHS.has(loc.value.toLowerCase())
       ? { city: { startsWith: 'Toronto' } }
       : { city: { equals: loc.value, mode: 'insensitive' } }

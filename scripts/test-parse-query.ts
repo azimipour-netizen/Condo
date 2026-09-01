@@ -42,6 +42,15 @@ const CASES: Case[] = [
   { q: '3br condo oakville over 1200 sqft', want: 'high',
     expect: { bedroomsMin: 3, sqftMin: 1200, propertyTypes: ['condo'] } },
   { q: 'show me homes in burlington', want: 'high' },
+  { q: 'detached 5 bedroom , c12 area', want: 'high',
+    expect: { bedroomsMin: 5, propertyTypes: ['detached'], location: { type: 'city', value: 'Toronto C12', cityValues: ['Toronto C12'] } } },
+  { q: 'condos in e04', want: 'high',
+    expect: { propertyTypes: ['condo'], location: { type: 'city', value: 'Toronto E04', cityValues: ['Toronto E04'] } } },
+  { q: 'homes for sale in toronto w06', want: 'high',
+    expect: { transactionType: 'sale', location: { type: 'city', value: 'Toronto W06', cityValues: ['Toronto W06'] } } },
+  // Not a real TRREB code (Toronto's C-series stops at C15) - must not be
+  // misread as a district and must not silently become a bogus city filter.
+  { q: 'condo in c99', want: 'low', why: 'c99 is not a real district code' },
 
   // --- must fall through to Claude ----------------------------------------
   { q: 'looking for motivated sellers in toronto', want: 'low',

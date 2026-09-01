@@ -2,6 +2,7 @@ import type { SearchFilters } from '@/types/search'
 import type { PropertyType } from '@/types/property'
 import { GTA_CITIES } from '@/lib/seo/gta-cities'
 import { TORONTO_NEIGHBOURHOODS } from '@/lib/seo/toronto-neighbourhoods'
+import { TORONTO_COMMUNITIES } from '@/lib/search/toronto-communities'
 
 /**
  * Deterministic natural-language to SearchFilters parser.
@@ -44,7 +45,7 @@ const STOPWORDS = new Set([
   'for', 'in', 'at', 'on', 'of', 'to', 'with', 'and', 'or', 'near', 'around',
   'some', 'any', 'something', 'anything', 'available', 'currently',
   'house', 'houses', 'home', 'homes', 'property', 'properties',
-  'listing', 'listings', 'place', 'places', 'unit', 'units', 'options',
+  'listing', 'listings', 'place', 'places', 'unit', 'units', 'options', 'area',
   'that', 'which', 'has', 'have', 'ideally', 'preferably', 'maybe',
 ])
 
@@ -86,7 +87,11 @@ export function parseQuery(raw: string): ParsedQuery {
 
   // Work on a lowercase copy; each recognised span is blanked out so it can't
   // be matched twice and doesn't count as leftover.
-  let rest = ` ${raw.toLowerCase().replace(/[^\w$%.,+\-\s]/g, ' ')} `
+  // Apostrophes are dropped (not turned into a space) before the general
+  // punctuation strip below, so "L'Amoreaux" -> "lamoreaux", a single token -
+  // not split into "l" + "amoreaux". Location terms are normalized the exact
+  // same way (see stripApostrophes below) so a name like that still matches.
+  let rest = ` ${raw.toLowerCase().replace(/['’]/g, '').replace(/[^\w$%.,+\-\s]/g, ' ')} `
 
   const consume = (re: RegExp, onMatch: (m: RegExpExecArray) => boolean | void) => {
     const rx = new RegExp(re.source, re.flags.includes('g') ? re.flags : re.flags + 'g')
@@ -195,9 +200,36 @@ export function parseQuery(raw: string): ParsedQuery {
 
   // Location. Longest name first so "richmond hill" beats a stray "hill" and
   // "north york" is never shortened to "york".
+  // Raw MLS/TRREB district codes (Toronto's C01-C15, E01-E11, W01-W10) are a
+  // fixed public numbering standard, and Property.city stores them literally
+  // ("Toronto C12") - unlike a borough name (North York, Scarborough...),
+  // which has no single matching city value and would need real-world area
+  // knowledge to map correctly, a bare code needs no guessing. Checked before
+  // the name-based loop below so it always wins on an exact code match.
+  if (!filters.location) {
+    consume(/\b(?:toronto\s+)?(c(?:0[1-9]|1[0-5])|e(?:0[1-9]|1[01])|w(?:0[1-9]|10))\b/g, m => {
+      const code = `Toronto ${m[1].toUpperCase()}`
+      filters.location = { type: 'city', value: code, cityValues: [code] }
+      matched.push(`location ${code}`)
+    })
+  }
+
   interface LocEntry { term: string; label: string; apply: () => void }
   const locations: LocEntry[] = []
 
+  // Verified TRREB community names (Array.sort is stable, so pushing these
+  // first gives them priority over an equal-length TORONTO_NEIGHBOURHOODS
+  // term below - an exact district-code match beats a neighbourhood-contains
+  // fallback wherever both would resolve the same place, e.g. "Annex").
+  for (const c of TORONTO_COMMUNITIES) {
+    locations.push({
+      term: c.name.toLowerCase(),
+      label: c.name,
+      apply: () => {
+        filters.location = { type: 'city', value: c.code, cityValues: [c.code] }
+      },
+    })
+  }
   for (const c of GTA_CITIES) {
     locations.push({
       term: c.name.toLowerCase(),
@@ -225,7 +257,9 @@ export function parseQuery(raw: string): ParsedQuery {
 
   for (const loc of locations) {
     if (filters.location) break
-    const escaped = loc.term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    // Mirrors the apostrophe removal applied to `rest` above - without it, a
+    // term like "l'amoreaux" could never match "lamoreaux" in the text.
+    const escaped = loc.term.replace(/['’]/g, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
     if (!new RegExp(String.raw`\b${escaped}\b`).test(rest)) continue
     consume(new RegExp(String.raw`\b${escaped}\b`, 'g'), () => { /* consume span only */ })
     loc.apply()
