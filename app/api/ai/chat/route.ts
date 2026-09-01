@@ -7,6 +7,7 @@ import { validateSearchFilters } from '@/lib/search/validators'
 import { searchListingsDb } from '@/lib/search/db-search'
 import { parseQuery } from '@/lib/search/parse-query'
 import { describeResults } from '@/lib/search/describe-results'
+import { getCachedFilters, setCachedFilters } from '@/lib/search/query-cache'
 import { ratelimit, getIP, rateLimitResponse } from '@/lib/ratelimit'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
@@ -32,38 +33,59 @@ export async function POST(req: NextRequest) {
           controller.enqueue(enc.encode(`data: ${JSON.stringify(data)}\n\n`))
         }
 
+        // Runs a search entirely outside the Claude loop: query DB, emit the
+        // same tool_start/tool_result events the LLM path emits (so the
+        // client's existing handling doesn't need to know which path ran),
+        // then a short one-line reply — never a per-listing rundown, since
+        // the results panel already renders every card.
+        async function runFastPath(filters: import('@/types/search').SearchFilters) {
+          const validated = validateSearchFilters(filters)
+          send({ type: 'tool_start', name: 'search_properties' })
+          const result = await searchListingsDb(validated, 1, 20)
+          send({ type: 'tool_result', name: 'search_properties', data: result })
+          send({ type: 'text', content: describeResults(result, validated) })
+          send({ type: 'done' })
+          controller.close()
+        }
+
         try {
-          // ── Free path ────────────────────────────────────────────────────
+          // ── Free paths ───────────────────────────────────────────────────
           // Most searches are formulaic ("2 bed condo for rent north york").
-          // The parser resolves those to filters deterministically, so the
-          // whole turn costs a Postgres query and no API tokens at all.
+          // Two ways to skip Claude entirely, tried in order:
           //
-          // Restricted to the opening turn on purpose: once there's history,
-          // a message like "for lease, not for sale" only makes sense against
-          // what came before, and the parser has no memory. Those go to
-          // Claude, which does. The parser also self-reports `low` for
-          // anything it can't fully account for, so an unmatched qualifier
-          // ("near a good school") falls through rather than being dropped.
-          if (messages.length === 1 && typeof messages[0]?.content === 'string') {
+          //  1. The deterministic parser resolves the common structured
+          //     phrasing for free, with no cache lookup needed at all.
+          //  2. For text the parser can't resolve on its own (free-text
+          //     intent like "motivated sellers"), check whether some earlier
+          //     user's identically-phrased query already had Claude extract
+          //     filters for it. Query text clusters hard on a property site,
+          //     so one Claude call ends up serving every later user who types
+          //     the same thing.
+          //
+          // Both are restricted to the opening turn on purpose: once there's
+          // history, a message like "for lease, not for sale" only makes
+          // sense against what came before, which neither the parser nor the
+          // cache key has access to. Those go to Claude, which does.
+          const isOpeningTurn = messages.length === 1 && typeof messages[0]?.content === 'string'
+
+          if (isOpeningTurn) {
             const parsed = parseQuery(messages[0].content)
 
-            if (parsed.confidence === 'high') {
-              try {
-                // Same validation the model-supplied filters get - the values
-                // originate in user text either way.
-                const filters = validateSearchFilters(parsed.filters)
-                send({ type: 'tool_start', name: 'search_properties' })
-                const result = await searchListingsDb(filters, 1, 20)
-                send({ type: 'tool_result', name: 'search_properties', data: result })
-                send({ type: 'text', content: describeResults(result, filters) })
-                send({ type: 'done' })
-                controller.close()
+            try {
+              if (parsed.confidence === 'high') {
+                await runFastPath(parsed.filters)
                 return
-              } catch (err) {
-                // Never fail the request over the optimisation - fall through
-                // to Claude, which would have handled this turn anyway.
-                console.warn('[ai/chat] fast path failed, using model:', String(err).slice(0, 200))
               }
+
+              const cached = getCachedFilters(messages[0].content)
+              if (cached) {
+                await runFastPath(cached)
+                return
+              }
+            } catch (err) {
+              // Never fail the request over the optimisation - fall through
+              // to Claude, which would have handled this turn anyway.
+              console.warn('[ai/chat] fast path failed, using model:', String(err).slice(0, 200))
             }
           }
 
@@ -73,6 +95,12 @@ export async function POST(req: NextRequest) {
           }))
 
           let continueLoop = true
+          // Counts every tool call across the whole turn, including retries
+          // Claude makes after a zero-result search (e.g. sale -> lease
+          // fallback). Only the very first one reflects what the raw query
+          // actually means — caching a later, broadened retry under the
+          // original text would poison the cache with the wrong filters.
+          let toolCallCount = 0
 
           while (continueLoop) {
             const response = await anthropic.messages.create({
@@ -98,6 +126,8 @@ export async function POST(req: NextRequest) {
                 if (block.type !== 'tool_use') continue
 
                 send({ type: 'tool_start', name: block.name })
+                toolCallCount++
+                const isFirstToolCallOfTurn = toolCallCount === 1
 
                 try {
                   const result = await executeTool(block.name, block.input as Record<string, unknown>)
@@ -107,6 +137,20 @@ export async function POST(req: NextRequest) {
                     tool_use_id: block.id,
                     content: JSON.stringify(result),
                   })
+
+                  // Record what Claude extracted so the next user who types
+                  // this same free-text query hits the cache instead of
+                  // paying for another Claude call. Opening-turn AND the
+                  // first search of the turn only — a later retry (e.g. a
+                  // sale->lease fallback after zero results) reflects a
+                  // broadened guess, not the literal query, and must not
+                  // overwrite the cache with the wrong filters.
+                  if (isOpeningTurn && isFirstToolCallOfTurn && block.name === 'search_properties') {
+                    const input = block.input as { filters?: unknown }
+                    if (input.filters) {
+                      setCachedFilters(messages[0].content, input.filters as import('@/types/search').SearchFilters)
+                    }
+                  }
                 } catch (err) {
                   const msg = err instanceof Error ? err.message : 'Tool error'
                   toolResults.push({

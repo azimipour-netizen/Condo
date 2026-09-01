@@ -59,23 +59,19 @@ export function describeSearch(f: SearchFilters, plural = true): string {
   return parts.join(' ')
 }
 
+/**
+ * One short line — the results panel next to the chat already renders every
+ * returned listing as a card (photo, price, beds/baths, address), so this
+ * deliberately does NOT enumerate them. Mirrors the "after a plain search"
+ * rule in lib/ai/system-prompt.ts, which keeps the LLM path just as terse.
+ */
 export function describeResults(result: SearchResult, filters: SearchFilters): string {
-  const { total, properties } = result
+  const { total } = result
   const desc = describeSearch(filters)
 
   if (total === 0) {
-    return `No active ${desc} right now. Widening the price range or trying a nearby area usually helps — or tell me what to change and I'll adjust the search.`
+    return `No active ${desc} right now. Try widening the price range or a nearby area, or tell me what to change.`
   }
 
-  const prices = properties.map(p => p.price).filter(p => p > 0)
-  const lease = filters.transactionType === 'lease'
-  const range = prices.length
-    ? ` They run from ${money(Math.min(...prices))}${lease ? '/mo' : ''} to ${money(Math.max(...prices))}${lease ? '/mo' : ''}.`
-    : ''
-
-  const shown = total > properties.length
-    ? ` Showing the first ${properties.length}.`
-    : ''
-
-  return `Found ${total.toLocaleString()} ${desc}.${shown}${range} Ask me to narrow it down by price, bedrooms, or neighbourhood.`
+  return `Found ${total.toLocaleString()} ${desc} — check these out and let me know if you'd like any changes.`
 }
