@@ -8,12 +8,34 @@ import { searchListingsDb } from '@/lib/search/db-search'
 import { parseQuery } from '@/lib/search/parse-query'
 import { describeResults } from '@/lib/search/describe-results'
 import { getCachedFilters, setCachedFilters } from '@/lib/search/query-cache'
+import { withCacheBreakpoint } from '@/lib/ai/prompt-cache'
 import { ratelimit, getIP, rateLimitResponse } from '@/lib/ratelimit'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
+
+/**
+ * Prompt caching. Render order is tools -> system -> messages, and a cache
+ * breakpoint invalidates everything after the first byte that changed before
+ * it - so this only pays off if what precedes each marker is byte-identical
+ * across requests:
+ *
+ *  - SYSTEM_PROMPT and AI_TOOLS are both static exports, never built from
+ *    per-request data, so the tools+system prefix (~3100 tokens combined) is
+ *    identical on every call. One marker on the system block caches both,
+ *    since tools render first.
+ *  - The conversation history grows every loop iteration within a turn AND
+ *    across turns (the client resends full history each request - see
+ *    ChatInterface.tsx). withCacheBreakpoint marks the last message's last
+ *    block so every prior turn - already paid for - is read from cache
+ *    instead of reprocessed.
+ *
+ * Verify with response.usage.cache_read_input_tokens - zero across repeat
+ * requests means a silent invalidator crept into the prefix (a timestamp,
+ * non-deterministic JSON, a tool list that varies per user).
+ */
 
 export async function POST(req: NextRequest) {
   const rl = ratelimit(`ai:${getIP(req)}`, 8, 60_000)
@@ -89,9 +111,11 @@ export async function POST(req: NextRequest) {
             }
           }
 
+          // Block-array content, not a raw string: cache_control attaches to
+          // a content block, so a plain string here would be unmarkable.
           const anthropicMessages: Anthropic.MessageParam[] = messages.map((m: { role: string; content: string }) => ({
             role: m.role as 'user' | 'assistant',
-            content: m.content,
+            content: [{ type: 'text', text: m.content }],
           }))
 
           let continueLoop = true
@@ -106,10 +130,21 @@ export async function POST(req: NextRequest) {
             const response = await anthropic.messages.create({
               model: process.env.AI_MODEL ?? 'claude-sonnet-5',
               max_tokens: 2048,
-              system: SYSTEM_PROMPT,
+              system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
               tools: AI_TOOLS,
-              messages: anthropicMessages,
+              messages: withCacheBreakpoint(anthropicMessages),
             })
+
+            // One line per call: cache_read > 0 confirms caching is actually
+            // working; cache_creation is the (~1.25x priced) write that makes
+            // the next call's read possible. If cache_read stays 0 across
+            // repeat requests, something in the tools/system/history prefix
+            // is non-deterministic - see the withCacheBreakpoint comment.
+            const u = response.usage
+            console.log(
+              `[ai/chat] usage input=${u.input_tokens} output=${u.output_tokens} ` +
+              `cache_read=${u.cache_read_input_tokens ?? 0} cache_write=${u.cache_creation_input_tokens ?? 0}`
+            )
 
             // Stream text blocks
             for (const block of response.content) {
