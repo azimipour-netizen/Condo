@@ -5,6 +5,8 @@ import { AI_TOOLS } from '@/lib/ai/tools'
 import { getMLSAdapter } from '@/lib/mls/adapter'
 import { validateSearchFilters } from '@/lib/search/validators'
 import { searchListingsDb } from '@/lib/search/db-search'
+import { parseQuery } from '@/lib/search/parse-query'
+import { describeResults } from '@/lib/search/describe-results'
 import { ratelimit, getIP, rateLimitResponse } from '@/lib/ratelimit'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
@@ -31,6 +33,40 @@ export async function POST(req: NextRequest) {
         }
 
         try {
+          // ── Free path ────────────────────────────────────────────────────
+          // Most searches are formulaic ("2 bed condo for rent north york").
+          // The parser resolves those to filters deterministically, so the
+          // whole turn costs a Postgres query and no API tokens at all.
+          //
+          // Restricted to the opening turn on purpose: once there's history,
+          // a message like "for lease, not for sale" only makes sense against
+          // what came before, and the parser has no memory. Those go to
+          // Claude, which does. The parser also self-reports `low` for
+          // anything it can't fully account for, so an unmatched qualifier
+          // ("near a good school") falls through rather than being dropped.
+          if (messages.length === 1 && typeof messages[0]?.content === 'string') {
+            const parsed = parseQuery(messages[0].content)
+
+            if (parsed.confidence === 'high') {
+              try {
+                // Same validation the model-supplied filters get - the values
+                // originate in user text either way.
+                const filters = validateSearchFilters(parsed.filters)
+                send({ type: 'tool_start', name: 'search_properties' })
+                const result = await searchListingsDb(filters, 1, 20)
+                send({ type: 'tool_result', name: 'search_properties', data: result })
+                send({ type: 'text', content: describeResults(result, filters) })
+                send({ type: 'done' })
+                controller.close()
+                return
+              } catch (err) {
+                // Never fail the request over the optimisation - fall through
+                // to Claude, which would have handled this turn anyway.
+                console.warn('[ai/chat] fast path failed, using model:', String(err).slice(0, 200))
+              }
+            }
+          }
+
           const anthropicMessages: Anthropic.MessageParam[] = messages.map((m: { role: string; content: string }) => ({
             role: m.role as 'user' | 'assistant',
             content: m.content,

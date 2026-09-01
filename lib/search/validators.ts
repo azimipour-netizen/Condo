@@ -20,6 +20,7 @@ const BoundingBoxSchema = z.object({
 const LocationSchema = z.object({
   type: z.enum(['city', 'neighbourhood', 'intersection', 'bbox', 'radius']),
   value: z.string().max(200).optional(),
+  cityValues: z.array(z.string().max(100)).max(40).optional(),
   center: GeoPointSchema.optional(),
   radiusKm: z.number().min(0.1).max(50).optional(),
   bbox: BoundingBoxSchema.optional(),

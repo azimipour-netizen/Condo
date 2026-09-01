@@ -21,6 +21,12 @@ const LEGACY_TORONTO_BOROUGHS = new Set(['north york', 'etobicoke', 'scarborough
 function locationWhere(loc: SearchFilters['location']): Record<string, any> {
   if (!loc) return {}
 
+  // Explicit district codes win: they pin a former borough exactly, where the
+  // startsWith fallback below would widen the search to all of Toronto.
+  if (loc.cityValues?.length) {
+    return { city: { in: loc.cityValues } }
+  }
+
   if (loc.type === 'city' && loc.value) {
     return LEGACY_TORONTO_BOROUGHS.has(loc.value.toLowerCase())
       ? { city: { startsWith: 'Toronto' } }

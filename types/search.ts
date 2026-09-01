@@ -16,6 +16,14 @@ export interface SearchFilters {
   location?: {
     type: 'city' | 'neighbourhood' | 'intersection' | 'bbox' | 'radius'
     value?: string
+    /**
+     * Exact Property.city values to match, for places that have no single
+     * literal city value. Toronto's former boroughs are split across district
+     * codes in the feed ("Toronto C06", "Toronto C14"...), so North York can
+     * only be searched precisely by listing them - matching `startsWith
+     * 'Toronto'` instead returns the whole city.
+     */
+    cityValues?: string[]
     center?: GeoPoint
     radiusKm?: number
     bbox?: BoundingBox
