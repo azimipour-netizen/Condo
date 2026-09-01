@@ -9,7 +9,9 @@ import { parseQuery } from '@/lib/search/parse-query'
 import { describeResults } from '@/lib/search/describe-results'
 import { getCachedFilters, setCachedFilters } from '@/lib/search/query-cache'
 import { withCacheBreakpoint } from '@/lib/ai/prompt-cache'
+import { checkFreeChatLimit, recordFreeChat, FREE_CHAT_LIMIT } from '@/lib/ai/free-chat-limit'
 import { ratelimit, getIP, rateLimitResponse } from '@/lib/ratelimit'
+import { auth } from '@/auth'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -45,6 +47,27 @@ export async function POST(req: NextRequest) {
 
     if (!Array.isArray(messages) || messages.length === 0) {
       return new Response('Invalid messages', { status: 400 })
+    }
+
+    // Anonymous AI-chat gate: N free searches, then an account is required.
+    // Scoped to the opening turn only (messages.length === 1, the same
+    // signal the fast path above uses) — a follow-up in an already-started
+    // conversation isn't "another chat" and must not be cut off mid-flow.
+    // Classic filter/map search (/search) is untouched by this; it never
+    // calls this route.
+    if (messages.length === 1) {
+      const session = await auth()
+      if (!session?.user) {
+        const ip = getIP(req)
+        const gate = checkFreeChatLimit(ip)
+        if (!gate.allowed) {
+          return new Response(
+            JSON.stringify({ error: 'login_required', freeChatsUsed: gate.used, freeChatLimit: FREE_CHAT_LIMIT }),
+            { status: 403, headers: { 'Content-Type': 'application/json' } },
+          )
+        }
+        recordFreeChat(ip)
+      }
     }
 
     const stream = new ReadableStream({

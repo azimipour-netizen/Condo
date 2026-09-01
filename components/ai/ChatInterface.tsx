@@ -18,13 +18,16 @@ function loadSession() {
   try {
     const raw = sessionStorage.getItem(SESSION_KEY)
     if (!raw) return null
-    return JSON.parse(raw) as { messages: AIMessage[]; searchResult: SearchResult | null; currentFilters: SearchFilters }
+    return JSON.parse(raw) as { messages: AIMessage[]; searchResult: SearchResult | null; currentFilters: SearchFilters; loginRequired?: boolean }
   } catch { return null }
 }
 
-function saveSession(messages: AIMessage[], searchResult: SearchResult | null, currentFilters: SearchFilters) {
+// loginRequired persists here too — without it, reloading a gated thread (or
+// navigating back to it) would restore the conversation with a fresh input
+// box, letting a follow-up message skip the server's new-chat-only gate.
+function saveSession(messages: AIMessage[], searchResult: SearchResult | null, currentFilters: SearchFilters, loginRequired: boolean) {
   try {
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ messages, searchResult, currentFilters }))
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ messages, searchResult, currentFilters, loginRequired }))
   } catch {}
 }
 
@@ -41,6 +44,12 @@ export default function ChatInterface({ initialMessage }: Props) {
   const [currentFilters, setCurrentFilters] = useState<SearchFilters>({})
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [showMobileResults, setShowMobileResults] = useState(false)
+  const [loginRequired, setLoginRequired] = useState(false)
+  // Derived, not the raw flag: loginRequired persists across reloads (see
+  // saveSession), but once the visitor actually signs in, session.user
+  // exists and the gate must lift immediately — without this, a restored
+  // gated thread would stay locked forever even after login.
+  const isGated = loginRequired && !session?.user
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const hasSentInitial = useRef(false)
@@ -62,6 +71,7 @@ export default function ChatInterface({ initialMessage }: Props) {
       if (saved?.messages?.length) setMessages(saved.messages)
       if (saved?.searchResult) setSearchResult(saved.searchResult)
       if (saved?.currentFilters) setCurrentFilters(saved.currentFilters)
+      if (saved?.loginRequired) setLoginRequired(true)
     }
   }, []) // eslint-disable-line
 
@@ -75,8 +85,8 @@ export default function ChatInterface({ initialMessage }: Props) {
   // Save session on every change, but skip the very first run (before restore is applied)
   useEffect(() => {
     if (firstSaveRef.current) { firstSaveRef.current = false; return }
-    saveSession(messages, searchResult, currentFilters)
-  }, [messages, searchResult, currentFilters])
+    saveSession(messages, searchResult, currentFilters, loginRequired)
+  }, [messages, searchResult, currentFilters, loginRequired])
 
   async function sendMessage(text: string) {
     const userMsg: AIMessage = {
@@ -107,6 +117,19 @@ export default function ChatInterface({ initialMessage }: Props) {
           messages: nextMessages.map(m => ({ role: m.role, content: m.content })),
         }),
       })
+
+      if (res.status === 403) {
+        const data = await res.json().catch(() => null)
+        if (data?.error === 'login_required') {
+          setLoginRequired(true)
+          setMessages(prev =>
+            prev.map(m => m.id === assistantId
+              ? { ...m, content: `You've used your ${data.freeChatLimit} free AI searches. Sign in to keep searching — it's free.` }
+              : m)
+          )
+          return
+        }
+      }
 
       if (!res.ok || !res.body) throw new Error('AI request failed')
 
@@ -175,7 +198,7 @@ export default function ChatInterface({ initialMessage }: Props) {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const text = input.trim()
-    if (!text || isStreaming) return
+    if (!text || isStreaming || isGated) return
     sendMessage(text)
   }
 
@@ -183,7 +206,7 @@ export default function ChatInterface({ initialMessage }: Props) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       const text = input.trim()
-      if (!text || isStreaming) return
+      if (!text || isStreaming || isGated) return
       sendMessage(text)
     }
   }
@@ -270,31 +293,47 @@ export default function ChatInterface({ initialMessage }: Props) {
               </button>
             </div>
           )}
-          <form onSubmit={handleSubmit} className="relative">
-            <textarea
-              ref={textareaRef}
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Refine your search or ask a question…"
-              rows={1}
-              disabled={isStreaming}
-              className="w-full resize-none bg-[color:var(--bg-surface-2)] rounded-xl px-4 py-3 pr-12 text-sm text-[color:var(--foreground)] placeholder:text-[color:var(--text-faint)] outline-none border border-[color:var(--border)] focus:border-[color:var(--accent)] disabled:opacity-50 transition-colors leading-relaxed"
-            />
-            <button
-              type="submit"
-              disabled={!input.trim() || isStreaming}
-              className="absolute right-3 bottom-3 w-7 h-7 flex items-center justify-center bg-[color:var(--accent)] hover:bg-[color:var(--accent-hover)] disabled:opacity-30 disabled:cursor-not-allowed rounded-lg transition-colors"
+          {isGated ? (
+            // Once the free-search limit is hit, the input is replaced
+            // entirely rather than just shown alongside a message — a
+            // follow-up typed into an already-started thread has
+            // messages.length > 1, which the server's gate (scoped to new
+            // chats only, so an in-progress conversation is never cut off
+            // mid-flow) does not re-check. Removing the input is what
+            // actually stops a gated thread from being talked past.
+            <a
+              href={`/login?callbackUrl=${encodeURIComponent('/')}`}
+              className="flex items-center justify-center gap-2 w-full bg-[color:var(--accent)] hover:bg-[color:var(--accent-hover)] text-white text-sm font-semibold px-4 py-3 rounded-xl transition-colors"
             >
-              {isStreaming ? (
-                <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              ) : (
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                  <path d="M1 6H11M6 1L11 6L6 11" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              )}
-            </button>
-          </form>
+              Sign in to keep searching
+            </a>
+          ) : (
+            <form onSubmit={handleSubmit} className="relative">
+              <textarea
+                ref={textareaRef}
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Refine your search or ask a question…"
+                rows={1}
+                disabled={isStreaming}
+                className="w-full resize-none bg-[color:var(--bg-surface-2)] rounded-xl px-4 py-3 pr-12 text-sm text-[color:var(--foreground)] placeholder:text-[color:var(--text-faint)] outline-none border border-[color:var(--border)] focus:border-[color:var(--accent)] disabled:opacity-50 transition-colors leading-relaxed"
+              />
+              <button
+                type="submit"
+                disabled={!input.trim() || isStreaming}
+                className="absolute right-3 bottom-3 w-7 h-7 flex items-center justify-center bg-[color:var(--accent)] hover:bg-[color:var(--accent-hover)] disabled:opacity-30 disabled:cursor-not-allowed rounded-lg transition-colors"
+              >
+                {isStreaming ? (
+                  <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                    <path d="M1 6H11M6 1L11 6L6 11" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+              </button>
+            </form>
+          )}
           <p className="text-xs text-[color:var(--text-faint)] mt-1.5 text-center">
             AI search assistant — all listings from authorized data sources
           </p>
