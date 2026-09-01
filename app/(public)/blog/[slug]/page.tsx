@@ -1,9 +1,68 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { db } from '@/lib/db'
 import type { Metadata } from 'next'
 import { renderBody, readingMinutes } from '@/lib/content/render-body'
 import { findGtaCity } from '@/lib/seo/gta-cities'
+
+const YORK_REGION_CITIES = [
+  'Aurora', 'Newmarket', 'Markham', 'Richmond Hill', 'Vaughan',
+  'East Gwillimbury', 'Georgina', 'Whitchurch-Stouffville', 'King',
+]
+
+const PROP_TYPE_LABELS: Record<string, string> = {
+  detached: 'Detached',
+  'semi-detached': 'Semi',
+  townhouse: 'Townhouse',
+  condo: 'Condo',
+  multiplex: 'Multiplex',
+}
+
+function parseBlogSearchConfig(slug: string): { maxPrice: number; minPrice: number; cities: string[] } | null {
+  const m = slug.match(/^what-can-i-buy-for-(\d+|1-million)-in-(toronto|york)$/)
+  if (!m) return null
+  const maxPrice = m[1] === '1-million' ? 1_100_000 : parseInt(m[1], 10)
+  const minPrice = Math.floor(maxPrice * 0.72)
+  const cities = m[2] === 'toronto' ? ['Toronto'] : YORK_REGION_CITIES
+  return { maxPrice, minPrice, cities }
+}
+
+interface ListingRow {
+  listingId: string
+  price: string | number | { toNumber(): number }
+  propertyType: string
+  bedrooms: number
+  bathroomsTotal: string | number
+  neighbourhood: string | null
+  city: string
+  address: string | null
+  images: { url: string }[]
+}
+
+async function fetchBlogListings(config: { maxPrice: number; minPrice: number; cities: string[] }): Promise<ListingRow[]> {
+  return (db as any).property.findMany({
+    where: {
+      status: 'active',
+      transactionType: 'sale',
+      price: { gte: config.minPrice, lte: config.maxPrice },
+      city: { in: config.cities },
+    },
+    select: {
+      listingId: true,
+      price: true,
+      propertyType: true,
+      bedrooms: true,
+      bathroomsTotal: true,
+      neighbourhood: true,
+      city: true,
+      address: true,
+      images: { select: { url: true }, orderBy: { order: 'asc' }, take: 1 },
+    },
+    orderBy: { listedAt: 'desc' },
+    take: 6,
+  })
+}
 
 interface Props { params: Promise<{ slug: string }> }
 
@@ -87,6 +146,9 @@ export default async function BlogPostPage({ params }: Props) {
   const city = post.citySlug ? findGtaCity(post.citySlug) : undefined
   const related = await getRelated(post.id, post.citySlug)
   const base = process.env.NEXT_PUBLIC_APP_URL ?? 'https://condohill.com'
+
+  const searchConfig = parseBlogSearchConfig(post.slug)
+  const liveListings = searchConfig ? await fetchBlogListings(searchConfig) : []
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -186,6 +248,82 @@ export default async function BlogPostPage({ params }: Props) {
           </div>
         </aside>
       </div>
+
+      {liveListings.length > 0 && searchConfig && (
+        <div className="mt-14 pt-10 border-t border-[color:var(--border)]">
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <h2 className="text-lg font-bold text-[color:var(--foreground)]">
+                Current listings in this price range
+              </h2>
+              <p className="text-sm text-[color:var(--text-muted)] mt-1">
+                Active MLS® listings ${searchConfig.minPrice.toLocaleString()}–${searchConfig.maxPrice.toLocaleString()} — updated live
+              </p>
+            </div>
+            <Link
+              href={`/homes-for-sale/${searchConfig.cities[0] === 'Toronto' ? 'toronto' : 'york-region'}`}
+              className="shrink-0 text-sm font-medium text-[color:var(--accent)] hover:opacity-80 transition-opacity"
+            >
+              See all →
+            </Link>
+          </div>
+
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {liveListings.map((listing) => {
+              const price = typeof listing.price === 'object' && 'toNumber' in listing.price
+                ? listing.price.toNumber()
+                : Number(listing.price)
+              const baths = typeof listing.bathroomsTotal === 'object' && 'toNumber' in listing.bathroomsTotal
+                ? (listing.bathroomsTotal as { toNumber(): number }).toNumber()
+                : Number(listing.bathroomsTotal)
+              const thumb = listing.images[0]?.url ?? null
+              const location = [listing.neighbourhood, listing.city].filter(Boolean).join(', ')
+
+              return (
+                <Link
+                  key={listing.listingId}
+                  href={`/property/${listing.listingId}`}
+                  className="group bg-[color:var(--bg-surface-1)] border border-[color:var(--border)] rounded-2xl overflow-hidden hover:border-[color:var(--accent)] hover:shadow-lg transition-all"
+                >
+                  <div className="relative aspect-[4/3] bg-[color:var(--bg-surface-2)] overflow-hidden">
+                    {thumb ? (
+                      <Image
+                        src={thumb}
+                        alt={location}
+                        fill
+                        className="object-cover group-hover:scale-105 transition-transform duration-500"
+                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-[color:var(--text-faint)]">
+                        <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
+                          <path d="M4 28V14L16 4L28 14V28H20V20H12V28H4Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+                        </svg>
+                      </div>
+                    )}
+                    <span className="absolute top-2 left-2 px-2 py-0.5 text-xs font-medium bg-[color:var(--bg-surface)] text-[color:var(--text-muted)] rounded-full border border-[color:var(--border)]">
+                      {PROP_TYPE_LABELS[listing.propertyType] ?? listing.propertyType}
+                    </span>
+                  </div>
+                  <div className="p-3">
+                    <p className="text-base font-bold text-[color:var(--foreground)]">
+                      ${price.toLocaleString()}
+                    </p>
+                    {listing.address && (
+                      <p className="text-xs font-medium text-[color:var(--foreground)] mt-0.5 truncate">{listing.address}</p>
+                    )}
+                    <p className="text-xs text-[color:var(--text-muted)] truncate">{location}</p>
+                    <div className="flex items-center gap-3 mt-2 text-xs text-[color:var(--text-muted)]">
+                      <span>{listing.bedrooms} bed</span>
+                      <span>{baths} bath</span>
+                    </div>
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {related.length > 0 && (
         <div className="mt-16 pt-10 border-t border-[color:var(--border)]">
