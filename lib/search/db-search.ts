@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import type { SearchFilters, SearchResult } from '@/types/search'
 import type { PropertySummary } from '@/types/property'
 import { GTA_CITIES } from '@/lib/seo/gta-cities'
+import { TORONTO_NEIGHBOURHOODS } from '@/lib/seo/toronto-neighbourhoods'
 
 /**
  * DB-backed equivalent of PropTxAdapter.searchListings(). The AMPRE-backed
@@ -29,29 +30,40 @@ function locationWhere(loc: SearchFilters['location']): Record<string, any> {
   }
 
   if (loc.type === 'city' && loc.value) {
-    // A former borough with a *verified* district-code mapping (currently
-    // only North York) resolves exactly, the same data the deterministic
-    // parser uses. This matters beyond the parser's own fast path: the AI
-    // tool schema exposed to Claude has no cityValues field (see
-    // lib/ai/tools.ts), so every conversational search for "North York"
-    // arrives here as a plain city value and would otherwise fall through
-    // to the blanket Toronto match below — which is the exact bug that
-    // returned Etobicoke/Scarborough/Mimico results for a North York rental
-    // search. Boroughs with no verified mapping (Scarborough, Etobicoke,
-    // East York) intentionally keep the broad fallback: a wrong guess at
-    // their codes would silently return wrong listings, which is worse than
-    // an honest "somewhere in Toronto" match.
-    const known = GTA_CITIES.find(c => c.name.toLowerCase() === loc.value!.toLowerCase())
-    if (known?.dbValues?.length) {
-      return { city: { in: known.dbValues } }
+    // A former borough with a *verified* district-code mapping resolves
+    // exactly, the same data the deterministic parser uses. This matters
+    // beyond the parser's own fast path: the AI tool schema exposed to
+    // Claude has no cityValues field (see lib/ai/tools.ts), and the system
+    // prompt tells Claude to use type:"city" for these boroughs — so every
+    // conversational search for "North York" or "Scarborough" arrives here
+    // as a plain city value and would otherwise fall through to the blanket
+    // Toronto match below. GTA_CITIES holds North York (it also anchors a
+    // /homes-for-sale/[city] SEO page); TORONTO_NEIGHBOURHOODS holds
+    // Scarborough/Etobicoke/East York (it anchors /neighbourhoods/[slug]
+    // instead) — checked together since Claude has no way to know which
+    // list a given borough lives in.
+    const value = loc.value.toLowerCase()
+    const known = GTA_CITIES.find(c => c.name.toLowerCase() === value)?.dbValues
+      ?? TORONTO_NEIGHBOURHOODS.find(n => n.name.toLowerCase() === value)?.cityValues
+    if (known?.length) {
+      return { city: { in: known } }
     }
 
-    return LEGACY_TORONTO_BOROUGHS.has(loc.value.toLowerCase())
+    return LEGACY_TORONTO_BOROUGHS.has(value)
       ? { city: { startsWith: 'Toronto' } }
       : { city: { equals: loc.value, mode: 'insensitive' } }
   }
 
   if (loc.type === 'neighbourhood' && loc.value) {
+    // Defense in depth: the system prompt tells Claude to use type:"city"
+    // for a former borough, but if it ever sends type:"neighbourhood"
+    // instead, this still resolves Scarborough/Etobicoke/East York exactly
+    // rather than silently falling through to the plain contains match.
+    const known = TORONTO_NEIGHBOURHOODS.find(n => n.name.toLowerCase() === loc.value!.toLowerCase())?.cityValues
+    if (known?.length) {
+      return { city: { in: known } }
+    }
+
     return {
       OR: [
         { neighbourhood: { contains: loc.value, mode: 'insensitive' } },

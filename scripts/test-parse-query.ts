@@ -51,6 +51,15 @@ const CASES: Case[] = [
   // Not a real TRREB code (Toronto's C-series stops at C15) - must not be
   // misread as a district and must not silently become a bogus city filter.
   { q: 'condo in c99', want: 'low', why: 'c99 is not a real district code' },
+  { q: 'homes in scarborough', want: 'high',
+    expect: { location: { type: 'city', value: 'Scarborough', cityValues: ['Toronto E04', 'Toronto E05', 'Toronto E06', 'Toronto E07', 'Toronto E08', 'Toronto E09', 'Toronto E10', 'Toronto E11'] } } },
+  { q: 'condo in etobicoke', want: 'high',
+    expect: { location: { type: 'city', value: 'Etobicoke', cityValues: ['Toronto W06', 'Toronto W07', 'Toronto W08', 'Toronto W09', 'Toronto W10'] } } },
+  // "East York" is ALSO a specific AMPRE community tag living inside E03
+  // alone (see toronto-communities.ts) - the borough-level entry (C11+E03)
+  // must win over that narrower one when both share the exact same name.
+  { q: 'east york', want: 'high',
+    expect: { location: { type: 'city', value: 'East York', cityValues: ['Toronto C11', 'Toronto E03'] } } },
 
   // --- must fall through to Claude ----------------------------------------
   { q: 'looking for motivated sellers in toronto', want: 'low',

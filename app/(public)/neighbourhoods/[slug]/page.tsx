@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { db } from '@/lib/db'
 import PropertyCard from '@/components/property/PropertyCard'
 import type { PropertySummary, PropertyType } from '@/types/property'
-import { TORONTO_NEIGHBOURHOODS, findNeighbourhood } from '@/lib/seo/toronto-neighbourhoods'
+import { TORONTO_NEIGHBOURHOODS, findNeighbourhood, neighbourhoodWhereClause, type TorontoNeighbourhood } from '@/lib/seo/toronto-neighbourhoods'
 
 const PER_PAGE = 24
 
@@ -35,10 +35,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 }
 
-async function getNeighbourhoodData(searchTerm: string, page: number) {
+async function getNeighbourhoodData(hood: TorontoNeighbourhood, page: number) {
   const where = {
     status: 'active',
-    neighbourhood: { contains: searchTerm, mode: 'insensitive' as const },
+    ...neighbourhoodWhereClause(hood),
   }
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -115,7 +115,7 @@ export default async function NeighbourhoodPage({ params, searchParams }: Props)
 
   const page = Math.max(1, parseInt(pageParam ?? '1', 10) || 1)
   const searchTerm = hood.searchTerm ?? hood.name
-  const { listings, count, avgPrice, minPrice, maxPrice, typeCountMap } = await getNeighbourhoodData(searchTerm, page)
+  const { listings, count, avgPrice, minPrice, maxPrice, typeCountMap } = await getNeighbourhoodData(hood, page)
   const totalPages = Math.ceil(count / PER_PAGE)
   const otherHoods = TORONTO_NEIGHBOURHOODS.filter(n => n.slug !== slug).slice(0, 8)
 

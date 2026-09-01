@@ -7,6 +7,30 @@ export interface TorontoNeighbourhood {
   about: string
   /** Term used for DB `neighbourhood contains` query; defaults to name when absent */
   searchTerm?: string
+  /**
+   * Exact Property.city values (TRREB district codes) for a former borough
+   * that spans several codes. Takes priority over searchTerm when present —
+   * see neighbourhoodWhereClause(). Verified against live data (see
+   * lib/search/toronto-communities.ts and this field's git history for the
+   * per-code community breakdown used to assign these); Old Toronto/old York
+   * boundary communities are deliberately excluded from any borough here
+   * where that boundary is genuinely ambiguous, same reasoning as
+   * lib/seo/gta-cities.ts's North York entry.
+   */
+  cityValues?: string[]
+}
+
+/**
+ * `neighbourhood contains searchTerm` only catches listings whose AMPRE
+ * neighbourhood tag happens to contain that literal word — for a former
+ * borough name that isn't itself a neighbourhood tag, that's nearly nothing
+ * (Scarborough matched 2 listings site-wide before cityValues existed, out
+ * of thousands of real Scarborough-area listings). Mirrors
+ * lib/seo/gta-cities.ts's cityWhereClause().
+ */
+export function neighbourhoodWhereClause(hood: TorontoNeighbourhood): Record<string, unknown> {
+  if (hood.cityValues?.length) return { city: { in: hood.cityValues } }
+  return { neighbourhood: { contains: hood.searchTerm ?? hood.name, mode: 'insensitive' } }
 }
 
 export const TORONTO_NEIGHBOURHOODS: TorontoNeighbourhood[] = [
@@ -213,6 +237,12 @@ export const TORONTO_NEIGHBOURHOODS: TorontoNeighbourhood[] = [
     description: 'Diverse east Toronto district with ravines and waterfront.',
     about: 'Scarborough is Toronto\'s east-end district, home to the Scarborough Bluffs, Rouge National Urban Park, and a highly diverse, multicultural community. Property prices are typically lower than the downtown core while offering more space — detached homes, bungalows, and smaller low-rise condos dominate the housing stock.',
     searchTerm: 'Scarborough',
+    // Old Toronto/East York keep E01–E03 (Riverdale, The Beaches, East York
+    // proper — see the east-york entry below); E04 west boundary is
+    // Victoria Park Ave, the traditional old-Toronto/Scarborough line.
+    // Confirmed against live community tags: E08 and E10 literally contain
+    // "Scarborough Village" / "Centennial Scarborough".
+    cityValues: ['Toronto E04', 'Toronto E05', 'Toronto E06', 'Toronto E07', 'Toronto E08', 'Toronto E09', 'Toronto E10', 'Toronto E11'],
   },
   {
     slug: 'etobicoke',
@@ -220,6 +250,10 @@ export const TORONTO_NEIGHBOURHOODS: TorontoNeighbourhood[] = [
     description: 'West Toronto\'s waterfront and Humber River communities.',
     about: 'Etobicoke is Toronto\'s west-end district, stretching from the Humber River to the Mississauga border. Diverse housing stock ranges from lakefront condos in Mimico to large family homes in the Kingsway and Islington. The Long Branch, Mimico, and Humber Bay Shore areas attract buyers seeking lakeside living at lower price points than downtown.',
     searchTerm: 'Etobicoke',
+    // W01–W05 (High Park, The Junction, Weston, York University Heights
+    // area) are old Toronto/old York, not Etobicoke. Confirmed against live
+    // community tags: W08 literally contains "Etobicoke West Mall".
+    cityValues: ['Toronto W06', 'Toronto W07', 'Toronto W08', 'Toronto W09', 'Toronto W10'],
   },
   {
     slug: 'east-york',
@@ -227,6 +261,11 @@ export const TORONTO_NEIGHBOURHOODS: TorontoNeighbourhood[] = [
     description: 'Bungalow belt with ravines and excellent value.',
     about: 'East York is a compact former borough now part of Toronto, stretching from the Don Valley east toward Victoria Park Avenue. Known for its well-maintained post-war bungalows, ravine lots, and prices that represent solid value relative to the downtown core. The future Ontario Line subway (East Harbour station) is expected to meaningfully improve transit access.',
     searchTerm: 'East York',
+    // C11 is Leaside/Thorncliffe Park/Flemingdon Park — the historic core of
+    // East York. E03 is confirmed directly from live data: it's the only
+    // code whose own community tags literally read "East York" and
+    // "Danforth Village-East York".
+    cityValues: ['Toronto C11', 'Toronto E03'],
   },
 ]
 

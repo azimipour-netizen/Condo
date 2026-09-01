@@ -221,7 +221,17 @@ export function parseQuery(raw: string): ParsedQuery {
   // first gives them priority over an equal-length TORONTO_NEIGHBOURHOODS
   // term below - an exact district-code match beats a neighbourhood-contains
   // fallback wherever both would resolve the same place, e.g. "Annex").
+  // A verified former-borough entry below (Scarborough, Etobicoke, East
+  // York) covers multiple codes and must win over a same-named single-code
+  // community entry - e.g. "East York" is both the borough (C11 + E03) and
+  // one specific AMPRE tag that happens to live inside E03 alone. Without
+  // this guard the narrower community entry shadows the broader, correct
+  // one purely because of push order.
+  const boroughNames = new Set(
+    TORONTO_NEIGHBOURHOODS.filter(n => n.cityValues?.length).map(n => n.name.toLowerCase())
+  )
   for (const c of TORONTO_COMMUNITIES) {
+    if (boroughNames.has(c.name.toLowerCase())) continue
     locations.push({
       term: c.name.toLowerCase(),
       label: c.name,
@@ -249,7 +259,13 @@ export function parseQuery(raw: string): ParsedQuery {
       term: n.name.toLowerCase().replace(/^the\s+/, ''),
       label: n.name,
       apply: () => {
-        filters.location = { type: 'neighbourhood', value: n.searchTerm ?? n.name }
+        // A former borough with verified district codes (Scarborough,
+        // Etobicoke, East York) resolves exactly, the same reasoning as
+        // North York above — the plain neighbourhood-contains match below
+        // only catches listings whose tag happens to contain that word.
+        filters.location = n.cityValues?.length
+          ? { type: 'city', value: n.name, cityValues: n.cityValues }
+          : { type: 'neighbourhood', value: n.searchTerm ?? n.name }
       },
     })
   }
