@@ -4,6 +4,7 @@ import Link from 'next/link'
 export const metadata: Metadata = {
   title: 'About',
   description: 'Condohill is a Toronto-based real estate brokerage helping buyers and sellers navigate the GTA market with AI-powered search and personalized service.',
+  alternates: { canonical: '/about' },
 }
 
 const stats = [

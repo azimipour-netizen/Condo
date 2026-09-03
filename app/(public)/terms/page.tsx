@@ -4,6 +4,7 @@ import type { Metadata } from 'next'
 export const metadata: Metadata = {
   title: 'Terms of Use',
   description: 'Terms governing use of the Condohill real estate platform.',
+  alternates: { canonical: '/terms' },
 }
 
 export default function TermsPage() {

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { findGtaCity, GTA_CITIES } from '@/lib/seo/gta-cities'
-import { PropTypeCityPage } from '@/components/property-type/PropTypeCityPage'
+import { PropTypeCityPage, getPropTypeCityCount } from '@/components/property-type/PropTypeCityPage'
 import { findPropTypeCfg } from '@/lib/seo/property-type-pages'
 
 const config = findPropTypeCfg('townhouses-for-sale')!
@@ -18,9 +18,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { city: slug } = await params
   const city = findGtaCity(slug)
   if (!city) return { title: 'Not Found' }
+  const count = await getPropTypeCityCount(config, city)
   return {
     title: config.cityTitle(city.name),
     description: config.metaDesc(city.name),
+    alternates: { canonical: `/townhouses-for-sale/${slug}` },
+    // A zero-listing combination is a real, thin, indexed-today page (e.g.
+    // "Multiplexes for Sale in Vaughan") — noindex it rather than let a
+    // contentless page rank, without removing the page itself.
+    robots: count === 0 ? { index: false, follow: true } : undefined,
   }
 }
 

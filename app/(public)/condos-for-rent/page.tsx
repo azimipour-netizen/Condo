@@ -8,6 +8,7 @@ export const metadata: Metadata = {
   title: 'Condos for Rent in the GTA — Toronto, Mississauga & More',
   description:
     'Browse active MLS® condo rental listings across the Greater Toronto Area. Search condos and apartments for rent in Toronto, Mississauga, Vaughan, Markham, and all GTA cities.',
+  alternates: { canonical: '/condos-for-rent' },
 }
 
 export default function CondosForRentPage() {

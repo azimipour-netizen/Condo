@@ -4,6 +4,7 @@ import type { Metadata } from 'next'
 export const metadata: Metadata = {
   title: 'Mortgage Calculator',
   description: 'Estimate your monthly mortgage payment for Toronto real estate. Adjust price, down payment, rate, and amortization.',
+  alternates: { canonical: '/mortgage-calculator' },
 }
 
 export default function MortgageCalculatorPage() {

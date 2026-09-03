@@ -4,6 +4,7 @@ import Link from 'next/link'
 export const metadata: Metadata = {
   title: 'Privacy Policy | Condohill',
   description: 'Learn how Condohill collects, uses, and protects your personal information in accordance with PIPEDA and Ontario privacy law.',
+  alternates: { canonical: '/privacy-policy' },
 }
 
 const LAST_UPDATED = 'August 26, 2026'

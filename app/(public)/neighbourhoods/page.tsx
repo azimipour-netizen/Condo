@@ -5,6 +5,7 @@ import { TORONTO_NEIGHBOURHOODS } from '@/lib/seo/toronto-neighbourhoods'
 export const metadata: Metadata = {
   title: 'Toronto Neighbourhoods — Browse Real Estate by Area',
   description: 'Explore homes for sale in Toronto\'s most popular neighbourhoods — from the Annex and Yorkville to Leslieville, High Park, the Danforth, and beyond.',
+  alternates: { canonical: '/neighbourhoods' },
 }
 
 export default function NeighbourhoodsPage() {

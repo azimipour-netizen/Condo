@@ -6,6 +6,7 @@ export const metadata: Metadata = {
   title: 'Toronto Neighbourhood Rentals — Find Apartments & Houses for Rent by Area',
   description:
     'Browse rental listings by Toronto neighbourhood — condos, apartments, and houses for rent in the Annex, King West, Leslieville, Yorkville, and 30+ more areas.',
+  alternates: { canonical: '/rentals/neighbourhoods' },
 }
 
 export default function NeighbourhoodRentalsHubPage() {

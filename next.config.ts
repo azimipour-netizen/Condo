@@ -13,6 +13,25 @@ const securityHeaders = [
 ]
 
 const nextConfig: NextConfig = {
+  // www.condohill.com and condohill.com both resolve to this same app
+  // (confirmed live: identical 200 OK from the same nginx instance on both
+  // hosts, no redirect between them) — the whole site was independently
+  // crawlable and indexable under two hostnames, splitting canonical signal
+  // and diluting authority between them. This is the app-level fix; no
+  // nginx/edge config change needed since both hostnames already reach here.
+  async redirects() {
+    return [
+      {
+        source: '/:path*',
+        has: [{ type: 'host', value: 'www.condohill.com' }],
+        destination: 'https://condohill.com/:path*',
+        permanent: true,
+      },
+    ]
+  },
+  // Stops the framework fingerprint (`X-Powered-By: Next.js`) from leaking
+  // in every response header.
+  poweredByHeader: false,
   async headers() {
     return [
       {

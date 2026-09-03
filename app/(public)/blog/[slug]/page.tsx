@@ -3,7 +3,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { db } from '@/lib/db'
 import type { Metadata } from 'next'
-import { renderBody, readingMinutes } from '@/lib/content/render-body'
+import { renderBody, readingMinutes, extractFaqs } from '@/lib/content/render-body'
 import { findGtaCity } from '@/lib/seo/gta-cities'
 
 const YORK_REGION_CITIES = [
@@ -121,6 +121,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: post.title,
     description: post.metaDescription ?? post.summary,
+    alternates: { canonical: `/blog/${slug}` },
     openGraph: {
       title: post.title,
       description: post.metaDescription ?? post.summary,
@@ -163,9 +164,26 @@ export default async function BlogPostPage({ params }: Props) {
     mainEntityOfPage: `${base}/blog/${post.slug}`,
   }
 
+  // Every sampled article already has a ready-made FAQ section (h2 "FAQ" +
+  // h3/p pairs, the conblog authoring format) — this is pure markup, no
+  // content change, so only articles that genuinely have one get the schema.
+  const faqs = extractFaqs(html)
+  const faqJsonLd = faqs.length > 0 ? {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: faqs.map(f => ({
+      '@type': 'Question',
+      name: f.question,
+      acceptedAnswer: { '@type': 'Answer', text: f.answer },
+    })),
+  } : null
+
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      {faqJsonLd && (
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
+      )}
 
       <nav className="flex items-center gap-2 text-sm text-[color:var(--text-muted)] mb-8">
         <Link href="/" className="hover:text-[color:var(--accent)] transition-colors">Home</Link>

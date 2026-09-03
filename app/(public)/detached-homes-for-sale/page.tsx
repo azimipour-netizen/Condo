@@ -8,6 +8,7 @@ export const metadata: Metadata = {
   title: 'Detached Homes for Sale in the GTA — Toronto, Mississauga & More',
   description:
     'Browse active MLS® detached home listings across the Greater Toronto Area. Search single-family houses for sale in Toronto, Mississauga, Vaughan, Markham, and all GTA cities.',
+  alternates: { canonical: '/detached-homes-for-sale' },
 }
 
 export default function DetachedHomesForSalePage() {

@@ -8,6 +8,7 @@ export const metadata: Metadata = {
   title: 'Condos for Sale in the GTA — Toronto, Mississauga & More',
   description:
     'Browse active MLS® condo listings across the Greater Toronto Area. Search condos for sale in Toronto, Mississauga, Vaughan, Markham, and all GTA cities.',
+  alternates: { canonical: '/condos-for-sale' },
 }
 
 export default function CondosForSalePage() {

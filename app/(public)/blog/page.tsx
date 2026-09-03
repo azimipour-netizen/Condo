@@ -6,6 +6,7 @@ import { findGtaCity } from '@/lib/seo/gta-cities'
 export const metadata: Metadata = {
   title: 'Guides & Market Updates',
   description: 'Toronto real estate insights, market reports, and neighbourhood guides from Condohill.',
+  alternates: { canonical: '/blog' },
 }
 
 interface PostCard {

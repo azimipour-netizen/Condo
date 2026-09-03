@@ -4,6 +4,11 @@ import type { Metadata } from 'next'
 export const metadata: Metadata = {
   title: 'Privacy Policy',
   description: 'How Condohill collects, uses, and protects your personal information.',
+  // Duplicate of /privacy-policy (the page the footer actually links to).
+  // Canonicalizing here instead of deleting the route, since it may already
+  // be indexed/bookmarked — this tells crawlers which URL is authoritative
+  // without a 404 for anyone with the old link.
+  alternates: { canonical: '/privacy-policy' },
 }
 
 const EFFECTIVE_DATE = 'August 1, 2026'

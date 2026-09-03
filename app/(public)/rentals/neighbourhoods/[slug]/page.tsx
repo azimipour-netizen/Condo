@@ -29,6 +29,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: `${hood.name} Rentals — Apartments & Houses for Rent in ${hood.name}, Toronto`,
     description: `Browse active MLS® rental listings in ${hood.name}, Toronto. ${hood.description} Real-time rental prices, photos, and property details.`,
+    alternates: { canonical: `/rentals/neighbourhoods/${slug}` },
   }
 }
 

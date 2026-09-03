@@ -8,6 +8,7 @@ export const metadata: Metadata = {
   title: 'Semi-Detached Homes for Sale in the GTA — Toronto, Mississauga & More',
   description:
     'Browse active MLS® semi-detached home listings across the Greater Toronto Area. Search semi-detached houses for sale in Toronto, Mississauga, Vaughan, Markham, and all GTA cities.',
+  alternates: { canonical: '/semi-detached-homes-for-sale' },
 }
 
 export default function SemiDetachedHomesForSalePage() {

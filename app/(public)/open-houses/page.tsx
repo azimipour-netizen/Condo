@@ -6,6 +6,7 @@ import OpenHouseCard from './OpenHouseCard'
 export const metadata: Metadata = {
   title: 'Open Houses',
   description: 'Upcoming open houses in Toronto. Browse available properties and register to attend.',
+  alternates: { canonical: '/open-houses' },
 }
 
 async function getUpcomingOpenHouses() {

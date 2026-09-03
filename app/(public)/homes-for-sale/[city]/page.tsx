@@ -23,6 +23,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const city = findGtaCity(slug)
   if (!city) return { title: 'Not Found' }
   const isNorthYork = city.slug === 'north-york'
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const count: number | null = await (db as any).property.count({
+    where: { status: 'active', transactionType: 'sale', ...cityWhereClause(city) },
+  }).catch(() => null) // fail open: a transient DB error must never noindex a real page
   return {
     title: isNorthYork
       ? `North York Real Estate | Homes for Sale in North York`
@@ -30,6 +34,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     description: isNorthYork
       ? `Browse active MLS® listings in North York, Toronto — houses, condos, and townhouses in Willowdale, Bayview Village, Bathurst Manor, and surrounding neighbourhoods.`
       : `Browse active MLS® listings for sale in ${city.name}, Ontario. Real-time prices, photos, and property details for houses, condos, and townhouses.`,
+    alternates: { canonical: `/homes-for-sale/${slug}` },
+    robots: count === 0 ? { index: false, follow: true } : undefined,
   }
 }
 

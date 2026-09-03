@@ -5,6 +5,7 @@ import { GTA_CITIES } from '@/lib/seo/gta-cities'
 export const metadata: Metadata = {
   title: 'Homes for Sale in the GTA',
   description: 'Browse active MLS® listings across every major Greater Toronto Area municipality — Toronto, Mississauga, Brampton, Vaughan, Markham, and more.',
+  alternates: { canonical: '/homes-for-sale' },
 }
 
 export default function HomesForSalePage() {
