@@ -47,7 +47,7 @@ export default function TopNav() {
           {/* Desktop nav links */}
           {NAV_LINKS.map(l => (
             <Link key={l.href} href={l.href}
-              className="text-sm text-[color:var(--text-muted)] hover:text-[color:var(--foreground)] transition-colors hidden lg:block">
+              className="text-sm text-[color:var(--text-muted)] hover:text-[color:var(--foreground)] transition-colors hidden xl:block">
               {l.label}
             </Link>
           ))}
@@ -60,13 +60,13 @@ export default function TopNav() {
             <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
               <path d="M2.5 1.5C2.5 1.5 1 1.5 1 3C1 7.5 5.5 12 10 12C11.5 12 11.5 10.5 11.5 10.5L9.5 8.5L8 9.5C8 9.5 5.5 7.5 4.5 4.5L5.5 3L3.5 1L2.5 1.5Z" fill="currentColor"/>
             </svg>
-            <span className="hidden lg:inline">905-909-6600</span>
+            <span className="hidden xl:inline">905-909-6600</span>
           </a>
 
           {/* Map Search button */}
           <Link
             href="/search"
-            className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-[color:var(--accent)] text-white rounded-lg hover:opacity-90 transition-opacity"
+            className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-[color:var(--accent)] text-white rounded-lg hover:opacity-90 transition-opacity"
           >
             <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
               <path d="M6.5 1C4.29 1 2.5 2.79 2.5 5C2.5 7.5 6.5 12 6.5 12C6.5 12 10.5 7.5 10.5 5C10.5 2.79 8.71 1 6.5 1ZM6.5 6.5C5.67 6.5 5 5.83 5 5C5 4.17 5.67 3.5 6.5 3.5C7.33 3.5 8 4.17 8 5C8 5.83 7.33 6.5 6.5 6.5Z" fill="currentColor"/>
@@ -78,7 +78,7 @@ export default function TopNav() {
           <a
             href="/"
             onClick={() => { try { sessionStorage.removeItem('chat_session') } catch {} }}
-            className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium border border-[color:var(--border)] text-[color:var(--foreground)] rounded-lg hover:bg-[color:var(--bg-surface-2)] transition-colors"
+            className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium border border-[color:var(--border)] text-[color:var(--foreground)] rounded-lg hover:bg-[color:var(--bg-surface-2)] transition-colors"
           >
             <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
               <circle cx="5.5" cy="5.5" r="4" stroke="currentColor" strokeWidth="1.4"/>
@@ -89,7 +89,7 @@ export default function TopNav() {
 
           {/* Desktop user menu */}
           {status === 'authenticated' ? (
-            <div className="relative hidden lg:block" ref={menuRef}>
+            <div className="relative hidden xl:block" ref={menuRef}>
               <button
                 onClick={() => setMenuOpen(o => !o)}
                 className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-[color:var(--bg-surface-2)] transition-colors"
@@ -144,7 +144,7 @@ export default function TopNav() {
             </div>
           ) : status === 'unauthenticated' ? (
             <Link href="/login"
-              className="px-3.5 py-1.5 text-sm font-medium bg-[color:var(--accent)] text-white rounded-lg hover:opacity-90 transition-colors hidden lg:block">
+              className="px-3.5 py-1.5 text-sm font-medium bg-[color:var(--accent)] text-white rounded-lg hover:opacity-90 transition-colors hidden xl:block">
               Sign in
             </Link>
           ) : null}
@@ -152,7 +152,7 @@ export default function TopNav() {
           {/* Mobile hamburger */}
           <button
             onClick={() => setMobileOpen(o => !o)}
-            className="lg:hidden flex items-center justify-center w-8 h-8 rounded-lg hover:bg-[color:var(--bg-surface-2)] transition-colors"
+            className="xl:hidden flex items-center justify-center w-8 h-8 rounded-lg hover:bg-[color:var(--bg-surface-2)] transition-colors"
             aria-label="Menu"
           >
             {mobileOpen ? (
@@ -170,13 +170,13 @@ export default function TopNav() {
 
       {/* Mobile drawer */}
       {mobileOpen && (
-        <div className="lg:hidden fixed inset-0 z-30 flex flex-col" onClick={() => setMobileOpen(false)}>
+        <div className="xl:hidden fixed inset-0 z-30 flex flex-col" onClick={() => setMobileOpen(false)}>
           {/* Backdrop */}
           <div className="flex-1 bg-black/40" />
         </div>
       )}
       {mobileOpen && (
-        <div className="lg:hidden fixed top-[53px] left-0 right-0 z-40 bg-[color:var(--bg-surface)] border-b border-[color:var(--border)] shadow-lg">
+        <div className="xl:hidden fixed top-[53px] left-0 right-0 z-40 bg-[color:var(--bg-surface)] border-b border-[color:var(--border)] shadow-lg">
           <nav className="flex flex-col divide-y divide-[color:var(--border)]">
             <a href="tel:9059096600"
               className="px-5 py-3.5 text-sm font-medium text-white bg-[#0D9488] hover:opacity-90 transition-opacity flex items-center gap-2">
