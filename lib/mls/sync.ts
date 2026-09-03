@@ -53,6 +53,11 @@ function propertyToDb(p: PropertySummary) {
     postalCode: p.location.postalCode ?? null,
     listedAt:  p.listedAt ? new Date(p.listedAt) : new Date(),
     syncedAt:  new Date(),
+    // AMPRE's real ModificationTimestamp (proptx.ts already carries it
+    // through onto p.updatedAt) — distinct from Prisma's own auto-bumped
+    // `updatedAt`, which moves on every sync touch regardless of whether
+    // the listing actually changed.
+    sourceModifiedAt: p.updatedAt ? new Date(p.updatedAt) : null,
   }
 }
 

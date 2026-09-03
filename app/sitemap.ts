@@ -13,7 +13,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       where: { status: 'active' },
       // /property/[id] resolves against AMPRE's ListingKey, not our own row
       // id — every property URL in the sitemap was a 404 waiting to happen.
-      select: { listingId: true, updatedAt: true },
+      select: { listingId: true, updatedAt: true, sourceModifiedAt: true },
       orderBy: { updatedAt: 'desc' },
       take: 5000,
     }),
@@ -103,12 +103,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE}/terms`, changeFrequency: 'yearly', priority: 0.2 },
   ]
 
-  const propertyUrls: MetadataRoute.Sitemap = properties.map((p: { listingId: string; updatedAt: Date }) => ({
-    url: `${BASE}/property/${p.listingId}`,
-    lastModified: p.updatedAt,
-    changeFrequency: 'daily' as const,
-    priority: 0.8,
-  }))
+  const propertyUrls: MetadataRoute.Sitemap = properties.map(
+    (p: { listingId: string; updatedAt: Date; sourceModifiedAt: Date | null }) => ({
+      url: `${BASE}/property/${p.listingId}`,
+      // AMPRE's real ModificationTimestamp when the row has been synced
+      // since this column was added; Prisma's auto-bumped updatedAt
+      // otherwise, so an unsynced row still gets a real (if less precise)
+      // date instead of no fallback at all.
+      lastModified: p.sourceModifiedAt ?? p.updatedAt,
+      changeFrequency: 'daily' as const,
+      priority: 0.8,
+    }))
 
   const blogUrls: MetadataRoute.Sitemap = blogPosts.map((p: { slug: string; updatedAt: Date }) => ({
     url: `${BASE}/blog/${p.slug}`,

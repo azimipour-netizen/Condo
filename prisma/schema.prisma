@@ -157,7 +157,14 @@ model Property {
   listedAt        DateTime            @default(now())
   syncedAt        DateTime            @default(now())
   createdAt       DateTime            @default(now())
+  // Prisma bumps this on every write regardless of whether any field
+  // actually changed — a routine sync touch (even a no-op upsert) moves it,
+  // so it can't answer "when did this listing genuinely last change" (the
+  // sitemap's lastmod needs that, not "when did sync last run").
   updatedAt       DateTime            @updatedAt
+  // AMPRE's real ModificationTimestamp, carried straight through from the
+  // feed. Nullable: existing rows won't have it until their next sync.
+  sourceModifiedAt DateTime?
 
   images          PropertyImage[]
   showingRequests ShowingRequest[]
