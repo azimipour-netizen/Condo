@@ -256,6 +256,19 @@ export default function PropertyDetailView({ property: p, initialSaved, avm, mar
           <span className="text-[color:var(--border)]">|</span>
           <span className="text-xs text-[color:var(--text-muted)]">MLS® {p.listingId}</span>
         </div>
+        {/* Breadcrumb — mirrors the BreadcrumbList JSON-LD in page.tsx */}
+        <nav className="max-w-6xl mx-auto px-4 sm:px-6 pb-3 flex items-center gap-2 text-sm text-[color:var(--text-muted)] overflow-x-auto">
+          <Link href="/" className="hover:text-[color:var(--accent)] transition-colors shrink-0">Home</Link>
+          <span className="shrink-0">/</span>
+          <Link
+            href={`/search?city=${encodeURIComponent(p.location.city)}`}
+            className="hover:text-[color:var(--accent)] transition-colors shrink-0"
+          >
+            {p.location.city}
+          </Link>
+          <span className="shrink-0">/</span>
+          <span className="text-[color:var(--foreground)] truncate">{p.location.address ?? p.title}</span>
+        </nav>
       </div>
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">

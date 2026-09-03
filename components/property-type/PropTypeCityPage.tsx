@@ -126,8 +126,20 @@ export async function PropTypeCityPage({ config, citySlug, page }: Props) {
   // configs used to bake "for Rent" into `plural` itself on top of that.
   const transactionLabel = config.transactionType === 'lease' ? 'for Rent' : 'for Sale'
 
+  const BASE = process.env.NEXT_PUBLIC_APP_URL ?? 'https://condohill.com'
+  const breadcrumbJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home', item: BASE },
+      { '@type': 'ListItem', position: 2, name: `${config.plural} ${transactionLabel}`, item: `${BASE}/${config.typeSlug}` },
+      { '@type': 'ListItem', position: 3, name: city.name },
+    ],
+  }
+
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       {/* Breadcrumb */}
       <nav className="flex items-center gap-2 text-sm text-[color:var(--text-muted)] mb-8">
         <Link href="/" className="hover:text-[color:var(--accent)] transition-colors">Home</Link>

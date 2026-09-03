@@ -127,8 +127,20 @@ export default async function CityLandingPage({ params, searchParams }: Props) {
   const totalPages = Math.ceil(count / PER_PAGE)
   const otherCities = GTA_CITIES.filter(c => c.slug !== city.slug).slice(0, 8)
 
+  const BASE = process.env.NEXT_PUBLIC_APP_URL ?? 'https://condohill.com'
+  const breadcrumbJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home', item: BASE },
+      { '@type': 'ListItem', position: 2, name: 'Homes for Sale', item: `${BASE}/homes-for-sale` },
+      { '@type': 'ListItem', position: 3, name: city.name },
+    ],
+  }
+
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       {/* Breadcrumb */}
       <nav className="flex items-center gap-2 text-sm text-[color:var(--text-muted)] mb-8">
         <Link href="/" className="hover:text-[color:var(--accent)] transition-colors">Home</Link>

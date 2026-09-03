@@ -146,32 +146,90 @@ export default async function PropertyDetailPage({ params }: Props) {
   } catch {}
 
   const BASE = process.env.NEXT_PUBLIC_APP_URL ?? 'https://condohill.com'
+
+  // schema.org models the physical unit separately from the listing (the
+  // CreativeWork) via `about` — an Accommodation subtype carries address,
+  // geo, and room counts. Falls back to the generic Residence for property
+  // types with no closer subtype (townhouse/multiplex/commercial/land).
+  const ACCOMMODATION_TYPE: Record<string, string> = {
+    condo: 'Apartment',
+    detached: 'SingleFamilyResidence',
+    'semi-detached': 'SingleFamilyResidence',
+  }
+
+  const additionalProperty: Array<{ '@type': string; name: string; value: number; unitText: string }> = []
+  if (property.taxes) {
+    additionalProperty.push({ '@type': 'PropertyValue', name: 'AnnualPropertyTax', value: property.taxes, unitText: 'CAD' })
+  }
+  if (property.maintenanceFee) {
+    additionalProperty.push({ '@type': 'PropertyValue', name: 'MonthlyMaintenanceFee', value: property.maintenanceFee, unitText: 'CAD' })
+  }
+
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'RealEstateListing',
+    '@id': `${BASE}/property/${property.id}#listing`,
     name: property.title,
     description: property.description.slice(0, 500),
     url: `${BASE}/property/${property.id}`,
     image: property.images.map(img => img.url),
+    datePosted: property.listedAt ?? undefined,
+    about: {
+      '@type': ACCOMMODATION_TYPE[property.propertyType] ?? 'Residence',
+      name: property.title,
+      address: {
+        '@type': 'PostalAddress',
+        streetAddress: property.location.address ?? undefined,
+        addressLocality: property.location.city,
+        addressRegion: property.location.province,
+        postalCode: property.location.postalCode ?? undefined,
+        addressCountry: 'CA',
+      },
+      geo: property.location.latitude != null && property.location.longitude != null ? {
+        '@type': 'GeoCoordinates',
+        latitude: property.location.latitude,
+        longitude: property.location.longitude,
+      } : undefined,
+      numberOfBedroomsTotal: property.bedrooms,
+      numberOfBathroomsTotal: property.bathroomsTotal,
+      floorSize: property.sqft ? { '@type': 'QuantitativeValue', value: property.sqft, unitCode: 'FTK' } : undefined,
+      ...(additionalProperty.length ? { additionalProperty } : {}),
+    },
     offers: {
       '@type': 'Offer',
       price: property.price,
       priceCurrency: 'CAD',
+      availability: property.status === 'active' ? 'https://schema.org/InStock' : 'https://schema.org/SoldOut',
+      // References the same Organization entity declared on the homepage
+      // (app/page.tsx, @id `${BASE}/#organization`) rather than repeating
+      // the full object on every one of ~5000 listing pages.
+      seller: { '@id': `${BASE}/#organization` },
     },
-    address: {
-      '@type': 'PostalAddress',
-      addressLocality: property.location.city,
-      addressRegion: property.location.province,
-      postalCode: property.location.postalCode ?? undefined,
-      addressCountry: 'CA',
-    },
-    numberOfRooms: property.bedrooms,
-    floorSize: property.sqft ? { '@type': 'QuantitativeValue', value: property.sqft, unitCode: 'FTK' } : undefined,
+  }
+
+  // Mirrors the visible breadcrumb rendered in PropertyDetailView's top bar
+  // (Home > city > address) — structured data should describe what a
+  // visitor actually sees, not a hierarchy invented only for markup.
+  const breadcrumbItems = [
+    { name: 'Home', url: BASE },
+    { name: property.location.city, url: `${BASE}/search?city=${encodeURIComponent(property.location.city)}` },
+    { name: property.location.address ?? property.title },
+  ]
+  const breadcrumbJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: breadcrumbItems.map((item, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      name: item.name,
+      item: item.url,
+    })),
   }
 
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       <PropertyDetailView property={property} initialSaved={initialSaved} avm={avm} marketDemand={marketDemand} />
       <RecentlyViewed />
       <FloatingContact />
