@@ -8,6 +8,32 @@ import { PROP_TYPE_CFGS, type PropTypeCfg } from '@/lib/seo/property-type-pages'
 
 const PER_PAGE = 24
 
+/**
+ * Used by every city×property-type page's generateMetadata() to decide
+ * whether the page should be indexed. A zero-listing combination (e.g.
+ * "Multiplexes for Sale in Vaughan") is a real, indexed, zero-content page
+ * today — noindexing it doesn't remove the page (it still serves visitors
+ * who land there and shows the cross-links to browse other cities/types),
+ * it just stops search engines from ranking a page with nothing on it.
+ */
+export async function getPropTypeCityCount(config: PropTypeCfg, city: GtaCity): Promise<number | null> {
+  const where: Record<string, unknown> = {
+    status: 'active',
+    transactionType: config.transactionType,
+    ...cityWhereClause(city),
+  }
+  if (config.dbType) where.propertyType = config.dbType
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return await (db as any).property.count({ where })
+  } catch {
+    // null, not 0 — a transient DB error must never look like "genuinely
+    // zero listings" and noindex a real page. Every caller's `count === 0`
+    // check already fails open on null with no further change needed.
+    return null
+  }
+}
+
 function fmtPrice(n: number) {
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}M`
   return `$${Math.round(n / 1000)}K`
@@ -94,6 +120,11 @@ export async function PropTypeCityPage({ config, citySlug, page }: Props) {
     c => c.typeSlug !== config.typeSlug && c.transactionType === config.transactionType && c.dbType !== null
   )
   const otherCities = GTA_CITIES.filter(c => c.slug !== city.slug).slice(0, 8)
+  // config.plural is always a bare noun ("Condos", "Townhouses") — this was
+  // previously hardcoded to the literal "for Sale" below, which produced
+  // "Townhouses for Rent for Sale" on every rent-type page, since some rent
+  // configs used to bake "for Rent" into `plural` itself on top of that.
+  const transactionLabel = config.transactionType === 'lease' ? 'for Rent' : 'for Sale'
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
@@ -102,7 +133,7 @@ export async function PropTypeCityPage({ config, citySlug, page }: Props) {
         <Link href="/" className="hover:text-[color:var(--accent)] transition-colors">Home</Link>
         <span>/</span>
         <Link href={`/${config.typeSlug}`} className="hover:text-[color:var(--accent)] transition-colors">
-          {config.plural} for Sale
+          {config.plural} {transactionLabel}
         </Link>
         <span>/</span>
         <span className="text-[color:var(--foreground)]">{city.name}</span>
@@ -166,7 +197,7 @@ export async function PropTypeCityPage({ config, citySlug, page }: Props) {
       <div className="mb-6">
         <h2 className="text-xl font-bold text-[color:var(--foreground)]">
           {count > 0
-            ? `${count.toLocaleString()} ${config.plural} for Sale${totalPages > 1 ? ` — page ${page} of ${totalPages}` : ''}`
+            ? `${count.toLocaleString()} ${config.plural} ${transactionLabel}${totalPages > 1 ? ` — page ${page} of ${totalPages}` : ''}`
             : `No ${config.plural} listed in ${city.name}`}
         </h2>
       </div>

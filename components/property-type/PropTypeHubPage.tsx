@@ -23,6 +23,10 @@ export async function PropTypeHubPage({ config }: { config: PropTypeCfg }) {
   const otherTypes = PROP_TYPE_CFGS.filter(
     c => c.typeSlug !== config.typeSlug && c.transactionType === config.transactionType && c.dbType !== null
   )
+  // config.plural is a bare noun ("Condos") on every config now — this used
+  // to be hardcoded to the literal "for Sale" below, which was simply wrong
+  // on every rent-type hub page (e.g. condos-for-rent).
+  const transactionLabel = config.transactionType === 'lease' ? 'for Rent' : 'for Sale'
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-12">
@@ -30,7 +34,7 @@ export async function PropTypeHubPage({ config }: { config: PropTypeCfg }) {
       <nav className="flex items-center gap-2 text-sm text-[color:var(--text-muted)] mb-8">
         <Link href="/" className="hover:text-[color:var(--accent)] transition-colors">Home</Link>
         <span>/</span>
-        <span className="text-[color:var(--foreground)]">{config.plural} for Sale</span>
+        <span className="text-[color:var(--foreground)]">{config.plural} {transactionLabel}</span>
       </nav>
 
       <div className="mb-10">
@@ -88,7 +92,10 @@ export async function PropTypeHubPage({ config }: { config: PropTypeCfg }) {
               {otherTypes.map(t => (
                 <li key={t.typeSlug}>
                   <Link href={`/${t.typeSlug}`} className="text-[color:var(--text-muted)] hover:text-[color:var(--accent)] transition-colors">
-                    {t.plural} for sale in the GTA
+                    {/* otherTypes is filtered to the SAME transactionType as
+                        this page, so this must match transactionLabel above,
+                        not a hardcoded "for sale" (wrong on every rent hub). */}
+                    {t.plural} {transactionLabel.toLowerCase()} in the GTA
                   </Link>
                 </li>
               ))}
