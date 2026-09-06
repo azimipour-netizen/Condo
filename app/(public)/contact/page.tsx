@@ -19,19 +19,18 @@ const SinglePropertyMap = dynamic(() => import('@/components/map/SinglePropertyM
 const OFFICE = { lat: 43.6406408, lng: -79.3773371 }
 
 /**
- * Four real team members. Photos aren't wired in yet — each `avatar` is
- * `null` until the actual image files are placed under public/team/ (a
- * pasted-into-chat photo isn't accessible as a file from here; the real
- * image needs to arrive as an actual file). Until then this renders an
- * initials avatar from the person's own name (the same pattern
- * TopNav.tsx already uses for a signed-in user) rather than a stock photo
- * standing in for someone specific.
+ * Four real team members, photos under public/team/. `avatar` stays
+ * `string | null` (not required) so a future addition can start as a
+ * name-initials placeholder — see `initials()` below — the same pattern
+ * TopNav.tsx uses for a signed-in user, instead of a stock photo standing
+ * in for someone specific.
  */
-const CONTACTS = [
-  { role: 'Broker of Record', name: 'Muhammad Hussain', phone: '4163185264', avatar: null as string | null },
-  { role: 'Broker', name: 'Fareed Ali', phone: '4164199596', avatar: null as string | null },
-  { role: 'Real Estate Agent', name: 'Humayun Khan', phone: '6476719249', avatar: null as string | null },
-  { role: 'Realtor', name: 'Amir Azimipour', phone: '4168389006', avatar: null as string | null },
+interface Contact { role: string; name: string; phone: string; avatar: string | null }
+const CONTACTS: Contact[] = [
+  { role: 'Broker of Record', name: 'Muhammad Hussain', phone: '4163185264', avatar: '/team/muhammad-hussain.png' },
+  { role: 'Broker', name: 'Fareed Ali', phone: '4164199596', avatar: '/team/fareed-ali.png' },
+  { role: 'Real Estate Agent', name: 'Humayun Khan', phone: '6476719249', avatar: '/team/humayun-khan.webp' },
+  { role: 'Realtor', name: 'Amir Azimipour', phone: '4168389006', avatar: '/team/amir-azimipour.png' },
 ]
 
 function initials(name: string) {
