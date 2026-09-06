@@ -19,19 +19,24 @@ const SinglePropertyMap = dynamic(() => import('@/components/map/SinglePropertyM
 const OFFICE = { lat: 43.6406408, lng: -79.3773371 }
 
 /**
- * Four named contacts, per the user's request ("I will provide the photo
- * and phone number of 4 people"). Real photos/names/direct numbers are
- * pending — placeholder here is an honest "pending" label and an
- * initials-style avatar (the same pattern TopNav.tsx already uses for a
- * signed-in user), never a stock photo standing in for a real, named
- * person who doesn't exist on this team.
+ * Four real team members. Photos aren't wired in yet — each `avatar` is
+ * `null` until the actual image files are placed under public/team/ (a
+ * pasted-into-chat photo isn't accessible as a file from here; the real
+ * image needs to arrive as an actual file). Until then this renders an
+ * initials avatar from the person's own name (the same pattern
+ * TopNav.tsx already uses for a signed-in user) rather than a stock photo
+ * standing in for someone specific.
  */
 const CONTACTS = [
-  { role: 'General enquiries', name: 'Name pending', phone: '9059096600', avatar: null as string | null },
-  { role: 'Buying', name: 'Name pending', phone: '9059096600', avatar: null as string | null },
-  { role: 'Selling', name: 'Name pending', phone: '9059096600', avatar: null as string | null },
-  { role: 'Rentals', name: 'Name pending', phone: '9059096600', avatar: null as string | null },
+  { role: 'Broker of Record', name: 'Muhammad Hussain', phone: '4163185264', avatar: null as string | null },
+  { role: 'Broker', name: 'Fareed Ali', phone: '4164199596', avatar: null as string | null },
+  { role: 'Real Estate Agent', name: 'Humayun Khan', phone: '6476719249', avatar: null as string | null },
+  { role: 'Realtor', name: 'Amir Azimipour', phone: '4168389006', avatar: null as string | null },
 ]
+
+function initials(name: string) {
+  return name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+}
 
 const fieldClass =
   'w-full rounded-xl border border-[color:var(--border)] bg-[color:var(--bg-surface-2)] px-4 py-3 text-sm text-[color:var(--foreground)] placeholder:text-[color:var(--text-faint)] transition-colors duration-200 focus-visible:border-[color:var(--accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]/20'
@@ -126,14 +131,23 @@ export default function ContactPage() {
 
             <div className="mt-12 grid gap-x-8 gap-y-10 sm:grid-cols-2">
               {CONTACTS.map(c => (
-                <motion.div key={c.role} variants={item}>
+                <motion.div key={c.name} variants={item}>
                   <h3 className="font-serif text-lg italic text-[color:var(--text-muted)]">
                     {c.role}
                   </h3>
                   <div className="mt-4 flex items-center gap-3">
-                    <span className="w-11 h-11 rounded-full bg-[color:var(--accent)] text-white text-sm font-bold flex items-center justify-center shrink-0 border border-[color:var(--border)]">
-                      {c.role[0]}
-                    </span>
+                    {c.avatar ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={c.avatar}
+                        alt={c.name}
+                        className="w-11 h-11 rounded-full object-cover shrink-0 border border-[color:var(--border)]"
+                      />
+                    ) : (
+                      <span className="w-11 h-11 rounded-full bg-[color:var(--accent)] text-white text-sm font-bold flex items-center justify-center shrink-0 border border-[color:var(--border)]">
+                        {initials(c.name)}
+                      </span>
+                    )}
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-[color:var(--foreground)]">
                         {c.name}
