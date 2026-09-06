@@ -2,7 +2,19 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import Turnstile, { TURNSTILE_ENABLED } from '@/components/security/Turnstile'
+
+// Client-only: MapLibre touches window/canvas at import time.
+const SinglePropertyMap = dynamic(() => import('@/components/map/SinglePropertyMap'), { ssr: false })
+
+// 45 Harbour Square #4, Toronto — geocoded once (OpenStreetMap Nominatim,
+// street-level match, place_rank 30) since this is a fixed office address,
+// not something to re-resolve on every page load. The bundled geocoder in
+// lib/geo/geocode.ts is deliberately FSA-centroid only (neighbourhood-level,
+// no external API/billing risk for the property sync's volume) — too coarse
+// to pin an actual building.
+const OFFICE = { lat: 43.6406408, lng: -79.3773371 }
 
 const inputCls = "w-full bg-[color:var(--bg-surface-2)] border border-[color:var(--border)] rounded-xl px-3 py-2.5 text-sm text-[color:var(--foreground)] outline-none focus:border-[color:var(--accent)] transition-colors placeholder:text-[color:var(--text-faint)]"
 
@@ -158,6 +170,21 @@ export default function ContactPage() {
           <p className="font-medium text-[color:var(--foreground)] mb-1">Response time</p>
           <p className="text-[color:var(--text-muted)]">Within 1 business day</p>
         </div>
+        <div>
+          <p className="font-medium text-[color:var(--foreground)] mb-1">Office</p>
+          <p className="text-[color:var(--text-muted)]">
+            45 Harbour Square #4<br />
+            Toronto, ON
+          </p>
+        </div>
+        <div>
+          <p className="font-medium text-[color:var(--foreground)] mb-1">Phone</p>
+          <a href="tel:9059096600" className="text-[color:var(--accent)] hover:underline">905-909-6600</a>
+        </div>
+      </div>
+
+      <div className="mt-8 rounded-2xl overflow-hidden border border-[color:var(--border)] h-72">
+        <SinglePropertyMap lat={OFFICE.lat} lng={OFFICE.lng} title="Condohill — 45 Harbour Square #4" />
       </div>
     </div>
   )
