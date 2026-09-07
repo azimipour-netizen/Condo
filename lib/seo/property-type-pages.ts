@@ -184,8 +184,10 @@ export const PROP_TYPE_CFGS: PropTypeCfg[] = [
     singular: 'Townhouse',
     hubTitle: 'Townhouses for Rent in the GTA',
     cityTitle: (city) => `Townhouses for Rent in ${city}`,
+    // "townhome" included as a synonym search term (never used as its own
+    // page — same content, different word, would be duplicate-content risk)
     metaDesc: (city) =>
-      `Browse active MLS® townhouse rental listings in ${city}, Ontario. Real-time prices, photos, and property details for freehold and condo townhouses for rent.`,
+      `Browse active MLS® townhouse and townhome rental listings in ${city}, Ontario. Real-time prices, photos, and property details for freehold and condo townhouses for rent.`,
     buyerGuides: [
       { href: '/blog/steps-to-buying-a-home-in-the-gta', label: 'Thinking of buying? Steps to buy a home' },
       { href: '/blog/how-much-house-can-i-afford', label: 'How much house can I afford?' },
