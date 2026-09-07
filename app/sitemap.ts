@@ -101,6 +101,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // linked from the footer and now canonical.
     { url: `${BASE}/privacy-policy`, changeFrequency: 'yearly', priority: 0.2 },
     { url: `${BASE}/terms`, changeFrequency: 'yearly', priority: 0.2 },
+    // Standalone SEO content pages — real routes, deliberately linked from
+    // no nav anywhere on the site (discoverable via this sitemap and their
+    // own internal/external links only, per the explicit request that
+    // generated them).
+    { url: `${BASE}/mississauga-home-buying-guide`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/brampton-home-buying-guide`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/condo-maintenance-fees-explained`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/gta-rental-property-investment-guide`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/power-of-sale-properties-ontario`, changeFrequency: 'monthly' as const, priority: 0.6 },
   ]
 
   const propertyUrls: MetadataRoute.Sitemap = properties.map(
