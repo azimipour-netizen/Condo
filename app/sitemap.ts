@@ -110,6 +110,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE}/condo-maintenance-fees-explained`, changeFrequency: 'monthly' as const, priority: 0.6 },
     { url: `${BASE}/gta-rental-property-investment-guide`, changeFrequency: 'monthly' as const, priority: 0.6 },
     { url: `${BASE}/power-of-sale-properties-ontario`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/vaughan-home-buying-guide`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/markham-home-buying-guide`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/how-to-sell-a-condo-in-toronto`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/what-is-an-assignment-sale-ontario`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/multiple-offers-bidding-wars-gta`, changeFrequency: 'monthly' as const, priority: 0.6 },
   ]
 
   const propertyUrls: MetadataRoute.Sitemap = properties.map(
