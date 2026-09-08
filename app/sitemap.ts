@@ -115,6 +115,27 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE}/how-to-sell-a-condo-in-toronto`, changeFrequency: 'monthly' as const, priority: 0.6 },
     { url: `${BASE}/what-is-an-assignment-sale-ontario`, changeFrequency: 'monthly' as const, priority: 0.6 },
     { url: `${BASE}/multiple-offers-bidding-wars-gta`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    // Third batch of standalone SEO pages (20 pages) — same pattern.
+    { url: `${BASE}/oakville-home-buying-guide`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/burlington-home-buying-guide`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/richmond-hill-home-buying-guide`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/milton-home-buying-guide`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/ajax-home-buying-guide`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/pickering-home-buying-guide`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/whitby-home-buying-guide`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/newmarket-home-buying-guide`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/caledon-home-buying-guide`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/buyer-representation-agreement-ontario`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/seller-property-information-statement-ontario`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/condo-cooling-off-period-ontario`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/tarion-new-home-warranty-explained`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/what-is-a-bully-offer`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/mortgage-stress-test-explained`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/pre-construction-condo-deposit-structure`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/best-neighbourhoods-for-investors-in-toronto`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/condo-vs-house-gta`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/home-inspection-finds-a-problem`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/closing-holdback-explained`, changeFrequency: 'monthly' as const, priority: 0.6 },
   ]
 
   const propertyUrls: MetadataRoute.Sitemap = properties.map(
