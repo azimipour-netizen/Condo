@@ -523,11 +523,19 @@ export class PropTxAdapter implements IMLSAdapter {
 
   async getListing(id: string): Promise<Property | null> {
     try {
+      // VOW, not IDX: the IDX feed only carries Active listings (TRREB
+      // licensing), so any listing that has since sold, expired, or been
+      // terminated - but is still linked from a card, the sitemap, a saved
+      // search, or an emailed alert sent while it was active - 404s on the
+      // IDX token even though the record still exists. VOW carries every
+      // status, which is what a single already-known ListingKey lookup
+      // needs (unlike a public search, which should only ever surface
+      // Active inventory).
       const data = await reso<{ value: unknown[] }>('Property', {
         $filter:  `ListingKey eq '${id}'`,
         $expand:  'Media',
         $top:     '1',
-      })
+      }, true)
       if (!data.value.length) return null
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const property = normalize(data.value[0] as any)
@@ -559,10 +567,13 @@ export class PropTxAdapter implements IMLSAdapter {
    */
   async getPropertyRooms(listingKey: string): Promise<PropertyRoom[]> {
     try {
+      // VOW, same reasoning as getListing() above - a delisted property's
+      // room dimensions shouldn't silently vanish from its detail page just
+      // because it's no longer in the Active-only IDX feed.
       const data = await reso<{ value: unknown[] }>('PropertyRooms', {
         $filter:  `ListingKey eq '${listingKey.replace(/'/g, "''")}'`,
         $orderby: 'Order asc',
-      })
+      }, true)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return (data.value ?? []).map((r: any) => ({
         type:       r.RoomType ?? 'Room',
