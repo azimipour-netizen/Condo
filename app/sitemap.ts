@@ -136,6 +136,27 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE}/condo-vs-house-gta`, changeFrequency: 'monthly' as const, priority: 0.6 },
     { url: `${BASE}/home-inspection-finds-a-problem`, changeFrequency: 'monthly' as const, priority: 0.6 },
     { url: `${BASE}/closing-holdback-explained`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    // Fourth batch of standalone SEO pages (20 pages) — same pattern.
+    { url: `${BASE}/north-york-home-buying-guide`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/scarborough-home-buying-guide`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/etobicoke-home-buying-guide`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/oshawa-home-buying-guide`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/aurora-home-buying-guide`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/halton-hills-home-buying-guide`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/east-gwillimbury-home-buying-guide`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/georgina-home-buying-guide`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/king-home-buying-guide`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/tenant-rights-ontario`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/how-to-break-a-lease-ontario`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/rent-increase-guidelines-ontario`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/fixed-vs-variable-mortgage-rate`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/land-transfer-tax-rebate-first-time-buyers-ontario`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/condo-status-certificate-explained`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/freehold-vs-condo-townhouse-gta`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/new-construction-vs-resale-condo`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/cmhc-mortgage-insurance-explained`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/how-to-choose-a-realtor-gta`, changeFrequency: 'monthly' as const, priority: 0.6 },
+    { url: `${BASE}/best-time-to-sell-a-home-in-toronto`, changeFrequency: 'monthly' as const, priority: 0.6 },
   ]
 
   const propertyUrls: MetadataRoute.Sitemap = properties.map(
